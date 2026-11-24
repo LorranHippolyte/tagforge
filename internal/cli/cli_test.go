@@ -1,0 +1,264 @@
+package cli
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync/atomic"
+	"testing"
+	"time"
+
+	"github.com/LorranHippolyte/tagforge/internal/auth"
+	"github.com/LorranHippolyte/tagforge/internal/gtm"
+	"github.com/LorranHippolyte/tagforge/internal/safety"
+	"github.com/zalando/go-keyring"
+	"google.golang.org/api/option"
+	"google.golang.org/api/tagmanager/v2"
+)
+
+func execCLI(t *testing.T, deps Dependencies, stdin string, args ...string) (string, string, error) {
+	t.Helper()
+	cmd := NewRootCmd(deps)
+	var outBuf, errBuf bytes.Buffer
+	cmd.SetOut(&outBuf)
+	cmd.SetErr(&errBuf)
+	if stdin != "" {
+		cmd.SetIn(strings.NewReader(stdin))
+	}
+	cmd.SetArgs(args)
+	err := cmd.Execute()
+	return outBuf.String(), errBuf.String(), err
+}
+
+func mockCLIDeps(t *testing.T, srv *httptest.Server) Dependencies {
+	t.Helper()
+	return Dependencies{
+		Getenv: func(string) string { return "" },
+		ClientFactory: func(ctx context.Context, opts GlobalOptions, _ io.Writer) (*gtm.Client, error) {
+			mode, err := safety.ParseMode(opts.Mode)
+			if err != nil {
+				return nil, err
+			}
+			return gtm.NewClient(ctx, gtm.ClientConfig{
+				ClientOptions: []option.ClientOption{
+					option.WithHTTPClient(srv.Client()),
+					option.WithEndpoint(srv.URL),
+					option.WithoutAuthentication(),
+				},
+				Policy: &safety.Policy{
+					Mode:                 mode,
+					AllowUserPermissions: opts.AllowUserPermissions,
+				},
+				Scheduler: gtm.NewScheduler(gtm.SchedulerOptions{
+					QPS:         100,
+					Burst:       20,
+					MaxAttempts: 2,
+					BaseBackoff: 2 * time.Millisecond,
+				}),
+				Cache: gtm.NewSnapshotCache(!opts.NoCache, 30*time.Second),
+			})
+		},
+		StoreFactory: func(_ io.Writer) (auth.Store, error) {
+			keyring.MockInit()
+			return &auth.KeyringStore{}, nil
+		},
+	}
+}
+
+func TestHelpAndVersionJSON(t *testing.T) {
+	out, _, err := execCLI(t, Dependencies{}, "", "--help")
+	if err != nil {
+		t.Fatalf("--help failed: %v", err)
+	}
+	if !strings.Contains(out, "tagforge") || !strings.Contains(out, "workspaces") {
+		t.Fatalf("unexpected help output: %s", out)
+	}
+
+	out, _, err = execCLI(t, Dependencies{}, "", "version", "--format", "json")
+	if err != nil {
+		t.Fatalf("version --format json failed: %v", err)
+	}
+	var parsed map[string]string
+	if err := json.Unmarshal([]byte(out), &parsed); err != nil {
+		t.Fatalf("invalid version json %q: %v", out, err)
+	}
+	if parsed["version"] == "" {
+		t.Fatalf("expected version field in JSON output: %v", parsed)
+	}
+}
+
+func TestCLIAccountsTagsAndSafetyGates(t *testing.T) {
+	var publishHits atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/tagmanager/v2/accounts":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"account": []*tagmanager.Account{
+					{AccountId: "100", Name: "Genesis Work", Fingerprint: "fp-a"},
+				},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/tagmanager/v2/accounts/100/containers/200/workspaces/3/tags":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"tag": []*tagmanager.Tag{
+					{TagId: "10", Name: "GA4 - Config", Type: "googtag", Fingerprint: "fp-10"},
+				},
+			})
+		case r.Method == http.MethodPost && r.URL.Path == "/tagmanager/v2/accounts/100/containers/200/workspaces/3/tags":
+			var body tagmanager.Tag
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				return
+			}
+			body.TagId = "11"
+			body.Fingerprint = "fp-11"
+			_ = json.NewEncoder(w).Encode(body)
+		case r.Method == http.MethodDelete && r.URL.Path == "/tagmanager/v2/accounts/100/containers/200/workspaces/3/tags/10":
+			w.WriteHeader(http.StatusNoContent)
+		case r.Method == http.MethodPost && r.URL.Path == "/tagmanager/v2/accounts/100/containers/200/versions/5:publish":
+			publishHits.Add(1)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"containerVersion": &tagmanager.ContainerVersion{ContainerVersionId: "5", Name: "v5"},
+			})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	deps := mockCLIDeps(t, srv)
+
+	// accounts list table
+	out, _, err := execCLI(t, deps, "", "accounts", "list")
+	if err != nil {
+		t.Fatalf("accounts list failed: %v", err)
+	}
+	if !strings.Contains(out, "Genesis Work") {
+		t.Fatalf("accounts list output missing account name: %s", out)
+	}
+
+	// tags list json
+	out, _, err = execCLI(t, deps, "", "tags", "list", "--account", "100", "--container", "200", "--workspace", "3", "--format", "json")
+	if err != nil {
+		t.Fatalf("tags list failed: %v", err)
+	}
+	if !strings.Contains(out, `"googtag"`) {
+		t.Fatalf("tags list JSON missing googtag: %s", out)
+	}
+
+	// tags create via stdin
+	payload := `{"name":"GA4 - Event - purchase","type":"gaawe"}`
+	out, _, err = execCLI(t, deps, payload, "tags", "create", "--account", "100", "--container", "200", "--workspace", "3", "--file", "-", "--format", "json")
+	if err != nil {
+		t.Fatalf("tags create via stdin failed: %v", err)
+	}
+	if !strings.Contains(out, `"tagId": "11"`) {
+		t.Fatalf("unexpected tags create output: %s", out)
+	}
+
+	// tags delete without --confirm fails locally
+	_, _, err = execCLI(t, deps, "", "tags", "delete", "--account", "100", "--container", "200", "--workspace", "3", "--tag", "10")
+	if !errors.Is(err, safety.ErrBlocked) {
+		t.Fatalf("expected ErrBlocked when deleting without --confirm, got %v", err)
+	}
+
+	// tags delete with --confirm succeeds
+	_, _, err = execCLI(t, deps, "", "tags", "delete", "--account", "100", "--container", "200", "--workspace", "3", "--tag", "10", "--confirm")
+	if err != nil {
+		t.Fatalf("tags delete with --confirm failed: %v", err)
+	}
+
+	// versions publish blocked in default workspace-only mode even with --confirm
+	_, _, err = execCLI(t, deps, "", "versions", "publish", "--account", "100", "--container", "200", "--version", "5", "--fingerprint", "fp-5", "--confirm")
+	if !errors.Is(err, safety.ErrBlocked) {
+		t.Fatalf("expected ErrBlocked for publish in default mode, got %v", err)
+	}
+	if publishHits.Load() != 0 {
+		t.Fatalf("publish should not hit server in workspace-only mode")
+	}
+
+	// versions publish succeeds in --mode full --confirm
+	out, _, err = execCLI(t, deps, "", "versions", "publish", "--account", "100", "--container", "200", "--version", "5", "--fingerprint", "fp-5", "--mode", "full", "--confirm", "--format", "json")
+	if err != nil {
+		t.Fatalf("versions publish in full mode failed: %v", err)
+	}
+	if publishHits.Load() != 1 || !strings.Contains(out, `"containerVersionId": "5"`) {
+		t.Fatalf("unexpected publish result: hits=%d out=%s", publishHits.Load(), out)
+	}
+}
+
+func TestCLIAuthStatusDoesNotLeakSecrets(t *testing.T) {
+	deps := Dependencies{
+		Getenv: func(string) string { return "" },
+		StoreFactory: func(_ io.Writer) (auth.Store, error) {
+			keyring.MockInit()
+			return &auth.KeyringStore{}, nil
+		},
+		AuthStatusFn: func(_ context.Context, cfg auth.ResolveConfig) (*auth.StatusReport, error) {
+			return &auth.StatusReport{
+				Authenticated:        true,
+				Source:               auth.SourceStoredOAuth,
+				Backend:              "os-keyring",
+				Profile:              cfg.Profile,
+				Email:                "user@example.com",
+				Scopes:               []string{auth.ScopeReadOnly},
+				MissingScopesForMode: []string{auth.ScopeEditContainers},
+				Mode:                 string(cfg.Mode),
+			}, nil
+		},
+	}
+
+	out, _, err := execCLI(t, deps, "", "auth", "status", "--format", "json")
+	if err != nil {
+		t.Fatalf("auth status failed: %v", err)
+	}
+	if !strings.Contains(out, `"authenticated": true`) || !strings.Contains(out, `"user@example.com"`) {
+		t.Fatalf("unexpected auth status output: %s", out)
+	}
+}
+
+func TestCLIAuthLoginAndLogout(t *testing.T) {
+	keyring.MockInit()
+	store := &auth.KeyringStore{}
+
+	deps := Dependencies{
+		Getenv: func(string) string { return "" },
+		StoreFactory: func(_ io.Writer) (auth.Store, error) {
+			return store, nil
+		},
+		LoginFn: func(_ context.Context, cfg auth.OAuthLoginConfig) (*auth.StoredToken, error) {
+			return &auth.StoredToken{
+				Scopes:   cfg.Scopes,
+				ClientID: cfg.Client.ClientID,
+			}, nil
+		},
+	}
+
+	out, _, err := execCLI(t, deps, "", "login", "--client-id", "test-cid", "--no-browser", "--format", "json")
+	if err != nil {
+		t.Fatalf("login failed: %v", err)
+	}
+	if !strings.Contains(out, `"authenticated": true`) || !strings.Contains(out, `"mode": "workspace-only"`) {
+		t.Fatalf("unexpected login output: %s", out)
+	}
+
+	if _, err := store.Load("default"); err != nil {
+		t.Fatalf("expected token saved in store: %v", err)
+	}
+
+	out, _, err = execCLI(t, deps, "", "auth", "logout", "--format", "json")
+	if err != nil {
+		t.Fatalf("auth logout failed: %v", err)
+	}
+	if !strings.Contains(out, `"removed": true`) {
+		t.Fatalf("unexpected logout output: %s", out)
+	}
+	if _, err := store.Load("default"); err != auth.ErrTokenNotFound {
+		t.Fatalf("expected ErrTokenNotFound after logout, got %v", err)
+	}
+}

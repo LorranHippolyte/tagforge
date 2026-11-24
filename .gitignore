@@ -1,0 +1,28 @@
+# Build outputs
+/bin/
+/dist/
+/tagforge
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test & coverage
+*.test
+*.out
+coverage.*
+
+# Local secrets & credentials (never commit)
+credentials.json
+client_secret*.json
+token.json
+*.key.json
+.env
+.env.*
+
+# Editor & OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
