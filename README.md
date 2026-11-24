@@ -2,7 +2,7 @@
 
 **Safe, standards-compliant Google Tag Manager automation, official blueprints, and container auditing — built in Go, local-first, zero VPS required.**
 
-`tagforge` is an open-source CLI and local MCP server designed for engineers, analysts, and agencies who want to configure, inspect, and audit Google Tag Manager containers safely and reproducibly according to official vendor documentation (Google Tag / GA4, Google Ads, Consent Mode v2, Meta Pixel & Conversions API, and Server-Side GTM).
+`tagforge` is an open-source CLI and local MCP server designed for engineers, analysts, and agencies who want to configure, inspect, and audit Google Tag Manager containers safely and reproducibly according to official vendor documentation (Google Tag / GA4, Google Ads, Consent Mode v2, Meta Pixel & Conversions API, TikTok, LinkedIn, Microsoft Clarity/UET, Pinterest, Shopify Customer Events, and Server-Side GTM).
 
 ---
 
@@ -21,11 +21,11 @@ Most existing GTM automation tools and MCP servers either expose raw API CRUD op
 
 2. **Core-First Architecture (CLI + Local MCP)**
    - Everything runs through a single, rate-limited, cache-aware Go core (`internal/gtm`, `internal/safety`, `internal/auth`, `internal/blueprints`, `internal/auditor`, `internal/trackingplan`).
-   - Use it directly from your terminal or CI pipelines, or launch `tagforge mcp` (`stdio`) to expose the exact same core across 19 context-efficient tools, 6 resources/templates, and 5 workflow prompts to Claude Code, Cursor, Claude Desktop, VS Code, Antigravity, and Codex without needing a remote server or VPS.
+   - Use it directly from your terminal or CI pipelines, or launch `tagforge mcp` (`stdio`) to expose the exact same core across 19 context-efficient tools, 6 resources/templates, and 7 workflow prompts to Claude Code, Cursor, Claude Desktop, VS Code, Antigravity, and Codex without needing a remote server or VPS.
 
 3. **Official, Declarative Blueprints & Deterministic Auditing**
-   - Embedded declarative YAML blueprints (`//go:embed`) with `plan` (dry-run diff + `dataLayer` snippet generation) and atomic `apply` (`workspace.bulkUpdate`) covering Google Tag/GA4, Lead Gen, GA4 Ecommerce, Google Ads Enhanced Conversions, Consent Mode v2, Meta Pixel Web, and Meta Conversions API (sGTM).
-   - Deterministic container auditing (`tagforge audit`, 15 rules) for Consent Mode v2, PII/LGPD hygiene, orphaned triggers/variables, duplicate tags, deprecated Universal Analytics tags, and Meta Pixel + CAPI `event_id` deduplication, plus living tracking plans and typed `dataLayer.push` snippet generation (`tagforge tracking-plan`).
+   - **16 embedded declarative YAML blueprints** (`//go:embed`) with `plan` (dry-run diff + `dataLayer` snippet generation) and atomic `apply` (`workspace.bulkUpdate`) covering Google Tag/GA4, Lead Gen, GA4 Ecommerce, Google Ads Enhanced Conversions, Consent Mode v2, Meta Pixel + CAPI (sGTM), TikTok Pixel + Events API (sGTM), LinkedIn Insight Tag + CAPI (sGTM), Microsoft Clarity + Advertising UET, Pinterest Tag, and Shopify + GTM Web/sGTM starter packs.
+   - Deterministic container auditing (`tagforge audit`, **16 rules**) for Consent Mode v2, PII/LGPD hygiene, orphaned triggers/variables, duplicate tags, deprecated Universal Analytics tags, and cross-platform `event_id` deduplication (Meta, TikTok, LinkedIn CAPI, Pinterest), plus living tracking plans and typed `dataLayer.push` snippet generation (`tagforge tracking-plan`).
 
 ---
 
@@ -35,9 +35,9 @@ Most existing GTM automation tools and MCP servers either expose raw API CRUD op
 |---|---|---|
 | **Phase 0** | Independent Go repo, MIT license, CI, docs, safety contract | **Ready** |
 | **Phase 1** | Core GTM API v2 client, rate limiter, defensive cache, safety engine, OAuth PKCE + Keychain/Service Account auth, local CLI | **Ready** |
-| **Phase 2** | `tagforge mcp` (`stdio`, 17 tools) + 7 Official Google, Meta & Consent Mode v2 Blueprints (`plan`/`apply`) | **Ready** |
-| **Phase 3** | Deterministic `audit` (15 rules), `tracking-plan` generator (`ts`/`js`/`nextjs`/`shopify`), 19 MCP tools, 6 resources/templates & 5 prompts | **Ready** |
-| **Phase 4** | TikTok, LinkedIn, Clarity & Shopify tracking packs | Planned |
+| **Phase 2** | `tagforge mcp` (`stdio`, 17 tools) + Official Google, Meta & Consent Mode v2 Blueprints (`plan`/`apply`) | **Ready** |
+| **Phase 3** | Deterministic `audit`, `tracking-plan` generator (`ts`/`js`/`nextjs`/`shopify`), 19 MCP tools, 6 resources/templates & 5 prompts | **Ready** |
+| **Phase 4** | 16 total Blueprints (TikTok, LinkedIn, Microsoft Clarity/UET, Pinterest + Shopify Web/sGTM Customer Events packs), 16 audit rules, 7 MCP prompts | **Ready** |
 | **Phase 5** | GoReleaser binaries, Homebrew/Scoop/npm `npx` wrapper, optional remote HTTP self-host | Planned |
 
 See [docs/roadmap.md](docs/roadmap.md) for details.
@@ -126,6 +126,8 @@ tagforge versions publish --account 123456 --container 789012 --version 12 --fin
 tagforge blueprints list
 tagforge blueprints plan --name google-ga4-ecommerce --account 123456 --container 789012 --workspace 5 --param measurement_id=G-XXXXXXXXXX
 tagforge blueprints apply --name meta-pixel-web --account 123456 --container 789012 --create-workspace "bp-meta-web" --import-templates --param pixel_id=123456789
+tagforge blueprints apply --name shopify-gtm-web --account 123456 --container 789012 --create-workspace "bp-shopify" --import-templates --param measurement_id=G-XXXXXXXXXX --param server_container_url=https://metrics.store.com
+tagforge blueprints apply --name tiktok-pixel-web --account 123456 --container 789012 --workspace 5 --import-templates --param pixel_id=CD9079RC77U0N3GBV16Y
 
 # Audit a workspace (or --live version) and generate a tracking plan with typed snippets
 tagforge audit --account 123456 --container 789012 --workspace 5 --fail-on high --format markdown

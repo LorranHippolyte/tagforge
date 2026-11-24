@@ -1,0 +1,208 @@
+id: pinterest-tag-web
+name: Pinterest Tag Web (Official Template + GA4 Ecommerce Bridge)
+version: "1.0.0"
+context: web
+category: pinterest
+description: Installs the official Pinterest Pixel Community Template (pinterest/ws-gtm-template) with useGA4Ecommerce enabled, Unique Event ID deduplication, and explicit Consent Mode checks.
+docs_urls:
+  - https://help.pinterest.com/en/business/article/google-tag-manager-and-pinterest-tag
+  - https://github.com/pinterest/ws-gtm-template
+params:
+  - name: tag_id
+    description: Pinterest Tag ID (13-digit numeric ID from Pinterest Ads Manager)
+    required: true
+    pattern: "^[0-9]+$"
+built_in_variables:
+  - event
+  - pageUrl
+gallery_templates:
+  - alias: pinterest_tag
+    owner: pinterest
+    repository: ws-gtm-template
+    acknowledge_permissions: true
+  - alias: unique_event_id_var
+    owner: stape-io
+    repository: unique-event-id-variable
+    acknowledge_permissions: true
+folders:
+  - key: pinterest_folder
+    name: Pinterest - Tag Web
+    notes: Managed by tagforge pinterest-tag-web blueprint
+variables:
+  - key: const_pinterest_tag_id
+    name: CONST - Pinterest Tag ID
+    type: c
+    parent_folder: ref:pinterest_folder
+    parameters:
+      - key: value
+        type: TEMPLATE
+        value: "${tag_id}"
+  - key: var_unique_event_id
+    name: VAR - Unique Event ID
+    type: template_ref:unique_event_id_var
+    parent_folder: ref:pinterest_folder
+triggers:
+  - key: pv_all_pages
+    name: PV - All Pages
+    type: pageview
+    parent_folder: ref:pinterest_folder
+  - key: ce_pinterest_atc
+    name: CE - Pinterest AddToCart
+    type: customEvent
+    parent_folder: ref:pinterest_folder
+    custom_event_filters:
+      - type: equals
+        parameters:
+          - key: arg0
+            type: TEMPLATE
+            value: "{{_event}}"
+          - key: arg1
+            type: TEMPLATE
+            value: add_to_cart
+  - key: ce_pinterest_checkout
+    name: CE - Pinterest Checkout
+    type: customEvent
+    parent_folder: ref:pinterest_folder
+    custom_event_filters:
+      - type: equals
+        parameters:
+          - key: arg0
+            type: TEMPLATE
+            value: "{{_event}}"
+          - key: arg1
+            type: TEMPLATE
+            value: purchase
+  - key: ce_pinterest_lead
+    name: CE - Pinterest Lead
+    type: customEvent
+    parent_folder: ref:pinterest_folder
+    custom_event_filters:
+      - type: equals
+        parameters:
+          - key: arg0
+            type: TEMPLATE
+            value: "{{_event}}"
+          - key: arg1
+            type: TEMPLATE
+            value: generate_lead
+tags:
+  - key: tag_pinterest_pagevisit
+    name: Pinterest - Tag - Base + PageVisit
+    type: template_ref:pinterest_tag
+    parent_folder: ref:pinterest_folder
+    firing_triggers:
+      - "ref:pv_all_pages"
+    tag_firing_option: oncePerEvent
+    consent:
+      status: needed
+      types:
+        - ad_storage
+        - ad_user_data
+        - ad_personalization
+    parameters:
+      - key: tagId
+        type: TEMPLATE
+        value: "{{CONST - Pinterest Tag ID}}"
+      - key: eventName
+        type: TEMPLATE
+        value: pagevisit
+      - key: event_id
+        type: TEMPLATE
+        value: "{{VAR - Unique Event ID}}"
+      - key: useGA4Ecommerce
+        type: BOOLEAN
+        value: "true"
+  - key: tag_pinterest_atc
+    name: Pinterest - Event - AddToCart
+    type: template_ref:pinterest_tag
+    parent_folder: ref:pinterest_folder
+    firing_triggers:
+      - "ref:ce_pinterest_atc"
+    tag_firing_option: oncePerEvent
+    consent:
+      status: needed
+      types:
+        - ad_storage
+        - ad_user_data
+        - ad_personalization
+    parameters:
+      - key: tagId
+        type: TEMPLATE
+        value: "{{CONST - Pinterest Tag ID}}"
+      - key: eventName
+        type: TEMPLATE
+        value: addtocart
+      - key: event_id
+        type: TEMPLATE
+        value: "{{VAR - Unique Event ID}}"
+      - key: useGA4Ecommerce
+        type: BOOLEAN
+        value: "true"
+  - key: tag_pinterest_checkout
+    name: Pinterest - Event - Checkout
+    type: template_ref:pinterest_tag
+    parent_folder: ref:pinterest_folder
+    firing_triggers:
+      - "ref:ce_pinterest_checkout"
+    tag_firing_option: oncePerEvent
+    consent:
+      status: needed
+      types:
+        - ad_storage
+        - ad_user_data
+        - ad_personalization
+    parameters:
+      - key: tagId
+        type: TEMPLATE
+        value: "{{CONST - Pinterest Tag ID}}"
+      - key: eventName
+        type: TEMPLATE
+        value: checkout
+      - key: event_id
+        type: TEMPLATE
+        value: "{{VAR - Unique Event ID}}"
+      - key: useGA4Ecommerce
+        type: BOOLEAN
+        value: "true"
+  - key: tag_pinterest_lead
+    name: Pinterest - Event - Lead
+    type: template_ref:pinterest_tag
+    parent_folder: ref:pinterest_folder
+    firing_triggers:
+      - "ref:ce_pinterest_lead"
+    tag_firing_option: oncePerEvent
+    consent:
+      status: needed
+      types:
+        - ad_storage
+        - ad_user_data
+        - ad_personalization
+    parameters:
+      - key: tagId
+        type: TEMPLATE
+        value: "{{CONST - Pinterest Tag ID}}"
+      - key: eventName
+        type: TEMPLATE
+        value: lead
+      - key: event_id
+        type: TEMPLATE
+        value: "{{VAR - Unique Event ID}}"
+      - key: useGA4Ecommerce
+        type: BOOLEAN
+        value: "true"
+data_layer_snippets:
+  - title: Pinterest GA4 Ecommerce + Lead Contract
+    language: javascript
+    description: Pinterest's official ws-gtm-template automatically extracts ecommerce.items, value, currency, and transaction_id when useGA4Ecommerce is enabled.
+    code: |
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({ ecommerce: null });
+      window.dataLayer.push({
+        event: "purchase",
+        ecommerce: {
+          transaction_id: "T_12345",
+          value: 299.90,
+          currency: "BRL",
+          items: [{ item_id: "SKU_123", item_name: "Product", price: 299.90, quantity: 1 }]
+        }
+      });

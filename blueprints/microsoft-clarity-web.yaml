@@ -1,0 +1,68 @@
+id: microsoft-clarity-web
+name: Microsoft Clarity Web (Official Sandboxed Template)
+version: "1.0.0"
+context: web
+category: microsoft
+description: Installs the official Microsoft Clarity GTM template (microsoft/clarity-gtm-template) firing once per page with explicit analytics_storage consent checks.
+docs_urls:
+  - https://learn.microsoft.com/en-us/clarity/third-party-integrations/google-tag-manager
+  - https://learn.microsoft.com/en-us/clarity/setup-and-installation/consent-management
+  - https://github.com/microsoft/clarity-gtm-template
+params:
+  - name: project_id
+    description: Microsoft Clarity Project ID (alphanumeric string from Clarity project URL)
+    required: true
+    pattern: "^[0-9a-zA-Z]+$"
+built_in_variables:
+  - pageUrl
+gallery_templates:
+  - alias: clarity_tag
+    owner: microsoft
+    repository: clarity-gtm-template
+    acknowledge_permissions: true
+folders:
+  - key: clarity_folder
+    name: Microsoft - Clarity
+    notes: Managed by tagforge microsoft-clarity-web blueprint
+variables:
+  - key: const_clarity_project_id
+    name: CONST - Microsoft Clarity Project ID
+    type: c
+    parent_folder: ref:clarity_folder
+    parameters:
+      - key: value
+        type: TEMPLATE
+        value: "${project_id}"
+triggers:
+  - key: pv_all_pages
+    name: PV - All Pages
+    type: pageview
+    parent_folder: ref:clarity_folder
+tags:
+  - key: tag_clarity_base
+    name: Microsoft - Clarity - Base
+    type: template_ref:clarity_tag
+    parent_folder: ref:clarity_folder
+    firing_triggers:
+      - "ref:pv_all_pages"
+    tag_firing_option: oncePerPage
+    consent:
+      status: needed
+      types:
+        - analytics_storage
+    parameters:
+      - key: projectId
+        type: TEMPLATE
+        value: "{{CONST - Microsoft Clarity Project ID}}"
+data_layer_snippets:
+  - title: Microsoft Clarity Consent API v2 & Custom Session Tags
+    language: javascript
+    description: Signal Clarity Consent API v2 updates from your CMP alongside Google Consent Mode v2 and attach non-PII diagnostic tags when needed.
+    code: |
+      if (typeof window.clarity === "function") {
+        window.clarity("consentv2", {
+          ad_Storage: "granted",
+          analytics_Storage: "granted"
+        });
+        window.clarity("set", "plan_tier", "enterprise");
+      }

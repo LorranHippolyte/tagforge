@@ -1,0 +1,178 @@
+id: microsoft-uet-web
+name: Microsoft Advertising UET (Page Load + Variable Revenue Conversion)
+version: "1.0.0"
+context: web
+category: microsoft
+description: Deploys the built-in Microsoft Advertising Universal Event Tracking (baut) tag for base page load tracking and dynamic variable revenue purchase goals with explicit Consent Mode checks.
+docs_urls:
+  - https://help.ads.microsoft.com/apex/index/3/en/56912
+  - https://help.ads.microsoft.com/apex/index/3/en/60119
+params:
+  - name: uet_tag_id
+    description: Microsoft Advertising UET Tag ID (numeric)
+    required: true
+    pattern: "^[0-9]+$"
+  - name: enable_spa_tracking
+    description: Enable UET automatic SPA page-view tracking
+    required: false
+    default: "false"
+    pattern: "^(true|false)$"
+  - name: conversion_event
+    description: Custom dataLayer event name triggering the Variable Revenue UET tag
+    required: false
+    default: "purchase"
+  - name: default_currency
+    description: Default ISO 4217 currency code
+    required: false
+    default: "BRL"
+built_in_variables:
+  - event
+  - pageUrl
+folders:
+  - key: uet_folder
+    name: Microsoft - Advertising UET
+    notes: Managed by tagforge microsoft-uet-web blueprint
+variables:
+  - key: const_uet_tag_id
+    name: CONST - Microsoft UET Tag ID
+    type: c
+    parent_folder: ref:uet_folder
+    parameters:
+      - key: value
+        type: TEMPLATE
+        value: "${uet_tag_id}"
+  - key: dlv_ecom_value
+    name: DLV - ecommerce.value
+    type: v
+    parent_folder: ref:uet_folder
+    parameters:
+      - key: dataLayerVersion
+        type: INTEGER
+        value: "2"
+      - key: name
+        type: TEMPLATE
+        value: ecommerce.value
+  - key: dlv_ecom_currency
+    name: DLV - ecommerce.currency
+    type: v
+    parent_folder: ref:uet_folder
+    parameters:
+      - key: dataLayerVersion
+        type: INTEGER
+        value: "2"
+      - key: setDefaultValue
+        type: BOOLEAN
+        value: "true"
+      - key: defaultValue
+        type: TEMPLATE
+        value: "${default_currency}"
+      - key: name
+        type: TEMPLATE
+        value: ecommerce.currency
+triggers:
+  - key: pv_all_pages
+    name: PV - All Pages
+    type: pageview
+    parent_folder: ref:uet_folder
+  - key: ce_uet_revenue
+    name: CE - UET Revenue Conversion
+    type: customEvent
+    parent_folder: ref:uet_folder
+    custom_event_filters:
+      - type: equals
+        parameters:
+          - key: arg0
+            type: TEMPLATE
+            value: "{{_event}}"
+          - key: arg1
+            type: TEMPLATE
+            value: "${conversion_event}"
+tags:
+  - key: tag_uet_pageload
+    name: Microsoft - UET - Page Load
+    type: baut
+    parent_folder: ref:uet_folder
+    firing_triggers:
+      - "ref:pv_all_pages"
+    tag_firing_option: oncePerPage
+    consent:
+      status: needed
+      types:
+        - ad_storage
+        - ad_user_data
+        - ad_personalization
+    parameters:
+      - key: tagId
+        type: TEMPLATE
+        value: "{{CONST - Microsoft UET Tag ID}}"
+      - key: uetqName
+        type: TEMPLATE
+        value: uetq
+      - key: eventType
+        type: TEMPLATE
+        value: PAGE_LOAD
+      - key: c_storeConvTrackCookies
+        type: BOOLEAN
+        value: "true"
+      - key: c_disableAutoPageView
+        type: BOOLEAN
+        value: "false"
+      - key: c_enableAutoSpaTracking
+        type: BOOLEAN
+        value: "${enable_spa_tracking}"
+      - key: c_removeQueryFromUrls
+        type: BOOLEAN
+        value: "false"
+      - key: c_navTimingApi
+        type: BOOLEAN
+        value: "false"
+  - key: tag_uet_revenue
+    name: Microsoft - UET - Variable Revenue
+    type: baut
+    parent_folder: ref:uet_folder
+    firing_triggers:
+      - "ref:ce_uet_revenue"
+    tag_firing_option: oncePerEvent
+    consent:
+      status: needed
+      types:
+        - ad_storage
+        - ad_user_data
+        - ad_personalization
+    parameters:
+      - key: tagId
+        type: TEMPLATE
+        value: "{{CONST - Microsoft UET Tag ID}}"
+      - key: uetqName
+        type: TEMPLATE
+        value: uetq
+      - key: eventType
+        type: TEMPLATE
+        value: VARIABLE_REVENUE
+      - key: goalValue
+        type: TEMPLATE
+        value: "{{DLV - ecommerce.value}}"
+      - key: p_currency
+        type: TEMPLATE
+        value: "{{DLV - ecommerce.currency}}"
+data_layer_snippets:
+  - title: Microsoft Advertising UET Consent Mode + Variable Revenue Push
+    language: javascript
+    description: Pair Microsoft UET Consent Mode updates from your CMP with standard GA4 ecommerce purchase dataLayer pushes.
+    code: |
+      window.uetq = window.uetq || [];
+      window.uetq.push("consent", "default", { ad_storage: "denied" });
+      // After CMP acceptance:
+      window.uetq.push("consent", "update", { ad_storage: "granted" });
+
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({ ecommerce: null });
+      window.dataLayer.push({
+        event: "purchase",
+        ecommerce: {
+          transaction_id: "T_12345",
+          value: 299.90,
+          currency: "BRL",
+          items: [{ item_id: "SKU_123", item_name: "Product", price: 299.90, quantity: 1 }]
+        }
+      });

@@ -1,0 +1,92 @@
+id: shopify-sgtm-pack
+name: Shopify + sGTM Server Pack (GA4 Forwarder + CAPI Composition Ready)
+version: "1.0.0"
+context: server
+category: shopify
+description: Server-Side GTM starter pack for Shopify storefronts pairing with shopify-gtm-web, configuring first-party GA4 forwarding (sgtmgaaw) with visitor IP redaction and shared GA4 client trigger ready for Meta/TikTok/LinkedIn CAPI composition.
+docs_urls:
+  - https://developers.google.com/tag-platform/tag-manager/server-side/intro
+  - https://shopify.dev/docs/api/web-pixels-api
+params:
+  - name: measurement_id
+    description: GA4 Measurement ID (e.g. G-XXXXXXXXXX)
+    required: true
+    pattern: "^G-[A-Z0-9]+$"
+  - name: ga4_client_name
+    description: Server-side GA4 client display name used to filter incoming events
+    required: false
+    default: "GA4"
+  - name: redact_visitor_ip
+    description: Mask/redact visitor IP addresses before forwarding hits to GA4 (true or false)
+    required: false
+    default: "true"
+    pattern: "^(true|false)$"
+built_in_variables:
+  - clientName
+  - eventName
+folders:
+  - key: shopify_sgtm_folder
+    name: Shopify - sGTM
+    notes: Managed by tagforge shopify-sgtm-pack blueprint
+variables:
+  - key: const_ga4_id
+    name: CONST - GA4 Measurement ID
+    type: c
+    parent_folder: ref:shopify_sgtm_folder
+    parameters:
+      - key: value
+        type: TEMPLATE
+        value: "${measurement_id}"
+triggers:
+  - key: ce_ga4_client
+    name: Custom - GA4 Client Incoming Events
+    type: customEvent
+    parent_folder: ref:shopify_sgtm_folder
+    custom_event_filters:
+      - type: matchRegex
+        parameters:
+          - key: arg0
+            type: TEMPLATE
+            value: "{{_event}}"
+          - key: arg1
+            type: TEMPLATE
+            value: ".*"
+    filters:
+      - type: equals
+        parameters:
+          - key: arg0
+            type: TEMPLATE
+            value: "{{Client Name}}"
+          - key: arg1
+            type: TEMPLATE
+            value: "${ga4_client_name}"
+tags:
+  - key: tag_shopify_sgtm_ga4
+    name: Shopify - sGTM - GA4 Forwarder
+    type: sgtmgaaw
+    parent_folder: ref:shopify_sgtm_folder
+    firing_triggers:
+      - "ref:ce_ga4_client"
+    tag_firing_option: oncePerEvent
+    parameters:
+      - key: measurementId
+        type: TEMPLATE
+        value: "{{CONST - GA4 Measurement ID}}"
+      - key: redactVisitorIp
+        type: BOOLEAN
+        value: "${redact_visitor_ip}"
+      - key: epToIncludeDropdown
+        type: TEMPLATE
+        value: all
+      - key: upToIncludeDropdown
+        type: TEMPLATE
+        value: all
+data_layer_snippets:
+  - title: Shopify First-Party sGTM Architecture & CAPI Composition
+    language: markdown
+    description: End-to-end deployment steps linking Shopify Customer Events Web GTM with sGTM and downstream CAPI destinations.
+    code: |
+      1. Point a first-party subdomain (e.g. `https://metrics.yourstore.com`) to your sGTM server container and verify the built-in GA4 Client (`GA4`) is active.
+      2. Apply `shopify-gtm-web` in your Web container with `--param server_container_url=https://metrics.yourstore.com`.
+      3. Apply `shopify-sgtm-pack` in your Server container, then compose `meta-capi-sgtm`, `tiktok-events-api-sgtm`, or `linkedin-capi-sgtm` into the same server workspace — all share `Custom - GA4 Client Incoming Events` and `ED - event_id`.
+      4. Add a `gtm_transformation` (Exclude Parameters) to strip raw `email`/`phone` fields before GA4 forwarding while allowing hashed user data for CAPI tags.

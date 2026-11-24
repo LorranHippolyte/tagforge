@@ -83,7 +83,7 @@ func LoadSnapshot(ctx context.Context, client *gtm.Client, accountID, containerI
 	return snap, nil
 }
 
-// Run loads the target container snapshot, runs all 15 deterministic rules, and returns a Report.
+// Run loads the target container snapshot, runs all 16 deterministic rules, and returns a Report.
 func Run(ctx context.Context, client *gtm.Client, input Input) (*Report, error) {
 	minSev, err := ParseSeverity(string(input.MinSeverity))
 	if err != nil {

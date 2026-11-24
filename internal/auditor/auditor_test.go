@@ -342,3 +342,162 @@ func TestRunAuditWorkspaceAndLiveAgainstMockServer(t *testing.T) {
 		t.Fatalf("unexpected live report: %+v", liveRep)
 	}
 }
+
+func TestEvaluateMultiPlatformPhase4Rules(t *testing.T) {
+	dirty := &Snapshot{
+		AccountID:   "1",
+		ContainerID: "2",
+		WorkspaceID: "3",
+		TargetLabel: "workspace 3",
+		Templates: []*tagmanager.CustomTemplate{
+			{TemplateId: "61", GalleryReference: &tagmanager.GalleryReference{Owner: "stape-io", Repository: "tiktok-web-tag"}},
+			{TemplateId: "62", GalleryReference: &tagmanager.GalleryReference{Owner: "tiktok", Repository: "gtm-template-eapi"}},
+			{TemplateId: "63", GalleryReference: &tagmanager.GalleryReference{Owner: "linkedin", Repository: "linkedin-gtm-community-template"}},
+			{TemplateId: "64", GalleryReference: &tagmanager.GalleryReference{Owner: "linkedin-developers", Repository: "linkedin-capi-tag-template"}},
+			{TemplateId: "65", GalleryReference: &tagmanager.GalleryReference{Owner: "microsoft", Repository: "clarity-gtm-template"}},
+			{TemplateId: "66", GalleryReference: &tagmanager.GalleryReference{Owner: "pinterest", Repository: "ws-gtm-template"}},
+		},
+		Triggers: []*tagmanager.Trigger{
+			{TriggerId: "0", Name: "Consent Init", Type: "consentInit"},
+			{TriggerId: "1", Name: "PV", Type: "pageview"},
+		},
+		Variables: []*tagmanager.Variable{
+			{VariableId: "v1", Name: "DLV - user_email", Type: "v", Parameter: []*tagmanager.Parameter{{Key: "name", Value: "user_data.email"}}},
+			{VariableId: "v2", Name: "DLV - user_phone", Type: "v", Parameter: []*tagmanager.Parameter{{Key: "name", Value: "user_data.phone"}}},
+		},
+		Tags: []*tagmanager.Tag{
+			{
+				TagId: "0", Name: "Consent Baseline", Type: "html", FiringTriggerId: []string{"0"},
+				ConsentSettings: &tagmanager.TagConsentSetting{ConsentStatus: "notNeeded"},
+				Parameter:       []*tagmanager.Parameter{{Key: "html", Value: "<script>gtag('consent','default',{});</script>"}},
+			},
+			{
+				TagId: "1", Name: "TikTok Web No Dedup", Type: "cvt_2_61", FiringTriggerId: []string{"1"},
+				ConsentSettings: &tagmanager.TagConsentSetting{ConsentStatus: "needed"},
+				Parameter: []*tagmanager.Parameter{
+					{Key: "pixelIds", Value: "CD9079RC77U0N3GBV16Y"},
+					{Key: "userDataList", Type: "LIST", List: []*tagmanager.Parameter{
+						{Type: "MAP", Map: []*tagmanager.Parameter{{Key: "name", Value: "email"}, {Key: "value", Value: "{{DLV - user_email}}"}}},
+					}},
+				},
+			},
+			{
+				TagId: "2", Name: "TikTok EAPI Test Active", Type: "cvt_2_62", FiringTriggerId: []string{"1"},
+				ConsentSettings: &tagmanager.TagConsentSetting{ConsentStatus: "needed"},
+				Parameter: []*tagmanager.Parameter{
+					{Key: "pixel_code", Value: "CD9079RC77U0N3GBV16Y"},
+					{Key: "test_event_code", Value: "TT_TEST_123"},
+					{Key: "email", Value: "{{DLV - user_email}}"},
+				},
+			},
+			{
+				TagId: "3", Name: "LinkedIn Insight Hardcoded", Type: "cvt_2_63", FiringTriggerId: []string{"1"},
+				ConsentSettings: &tagmanager.TagConsentSetting{ConsentStatus: "needed"},
+				Parameter:       []*tagmanager.Parameter{{Key: "partnerId", Value: "1234567"}},
+			},
+			{
+				TagId: "4", Name: "LinkedIn CAPI No Dedup", Type: "cvt_2_64", FiringTriggerId: []string{"1"},
+				ConsentSettings: &tagmanager.TagConsentSetting{ConsentStatus: "needed"},
+				Parameter: []*tagmanager.Parameter{
+					{Key: "apiAccessToken", Value: "secret-li-token"},
+					{Key: "userIds", Type: "LIST", List: []*tagmanager.Parameter{
+						{Type: "MAP", Map: []*tagmanager.Parameter{{Key: "name", Value: "email"}, {Key: "value", Value: "{{DLV - user_email}}"}}},
+					}},
+				},
+			},
+			{
+				TagId: "5", Name: "Clarity Hardcoded", Type: "cvt_2_65", FiringTriggerId: []string{"1"},
+				ConsentSettings: &tagmanager.TagConsentSetting{ConsentStatus: "needed"},
+				Parameter:       []*tagmanager.Parameter{{Key: "projectId", Value: "abc123def"}},
+			},
+			{
+				TagId: "6", Name: "Pinterest No Dedup & No Consent", Type: "cvt_2_66", FiringTriggerId: []string{"1"},
+				Parameter: []*tagmanager.Parameter{
+					{Key: "tagId", Value: "2612345678901"},
+					{Key: "em", Value: "{{DLV - user_email}}"},
+				},
+			},
+			{
+				TagId: "7", Name: "UET Missing Consent", Type: "baut", FiringTriggerId: []string{"1"},
+				Parameter: []*tagmanager.Parameter{
+					{Key: "tagId", Value: "99887766"},
+					{Key: "p_em", Value: "{{DLV - user_email}}"},
+					{Key: "p_ph", Value: "{{DLV - user_phone}}"},
+				},
+			},
+			{
+				TagId: "8", Name: "Pinterest BuiltIn Missing Consent", Type: "pntr", FiringTriggerId: []string{"1"},
+				ConsentSettings: &tagmanager.TagConsentSetting{ConsentStatus: "notSet"},
+				Parameter:       []*tagmanager.Parameter{{Key: "em", Value: "{{DLV - user_email}}"}},
+			},
+			{
+				TagId: "9", Name: "HTML Clarity", Type: "html", FiringTriggerId: []string{"1"},
+				ConsentSettings: &tagmanager.TagConsentSetting{ConsentStatus: "needed"},
+				Parameter:       []*tagmanager.Parameter{{Key: "html", Value: `<script src="https://www.clarity.ms/tag/abc"></script>`}},
+			},
+			{
+				TagId: "10", Name: "HTML UET", Type: "html", FiringTriggerId: []string{"1"},
+				ConsentSettings: &tagmanager.TagConsentSetting{ConsentStatus: "needed"},
+				Parameter:       []*tagmanager.Parameter{{Key: "html", Value: `<script src="https://bat.bing.com/bat.js"></script>`}},
+			},
+			{
+				TagId: "11", Name: "HTML Pinterest", Type: "html", FiringTriggerId: []string{"1"},
+				ConsentSettings: &tagmanager.TagConsentSetting{ConsentStatus: "needed"},
+				Parameter:       []*tagmanager.Parameter{{Key: "html", Value: `<script src="https://s.pinimg.com/ct/core.js"></script>`}},
+			},
+		},
+	}
+
+	report := EvaluateSnapshot(Input{MinSeverity: SeverityLow}, dirty)
+
+	if hasRule(report.Findings, "PII_EXPOSED_IN_PARAMS") {
+		t.Fatalf("expected official TikTok/LinkedIn CAPI/Pinterest/UET hashed user-data pipelines to be exempt from PII_EXPOSED_IN_PARAMS, got: %+v", report.Findings)
+	}
+
+	dedupTargets := map[string]bool{}
+	consentTargets := map[string]bool{}
+	hardcodedTargets := map[string]bool{}
+	htmlTargets := map[string]bool{}
+	var tiktokTestFound bool
+
+	for _, f := range report.Findings {
+		switch f.RuleID {
+		case "PLATFORM_DEDUP_MISSING_EVENT_ID":
+			dedupTargets[f.EntityName] = true
+		case "TEST_EVENT_CODE_ACTIVE":
+			if f.EntityName == "TikTok EAPI Test Active" {
+				tiktokTestFound = true
+			}
+		case "CONSENT_NOT_SET_ON_MARKETING_TAG":
+			consentTargets[f.EntityName] = true
+		case "HARDCODED_TRACKING_ID":
+			hardcodedTargets[f.EntityName] = true
+		case "UNSAFE_CUSTOM_HTML":
+			htmlTargets[f.EntityName] = true
+		}
+	}
+
+	for _, name := range []string{"TikTok Web No Dedup", "TikTok EAPI Test Active", "LinkedIn CAPI No Dedup", "Pinterest No Dedup & No Consent"} {
+		if !dedupTargets[name] {
+			t.Errorf("expected PLATFORM_DEDUP_MISSING_EVENT_ID on %q", name)
+		}
+	}
+	if !tiktokTestFound {
+		t.Errorf("expected TEST_EVENT_CODE_ACTIVE on TikTok EAPI tag")
+	}
+	for _, name := range []string{"UET Missing Consent", "Pinterest BuiltIn Missing Consent"} {
+		if !consentTargets[name] {
+			t.Errorf("expected CONSENT_NOT_SET_ON_MARKETING_TAG on %q", name)
+		}
+	}
+	for _, name := range []string{"TikTok Web No Dedup", "TikTok EAPI Test Active", "LinkedIn Insight Hardcoded", "LinkedIn CAPI No Dedup", "Clarity Hardcoded"} {
+		if !hardcodedTargets[name] {
+			t.Errorf("expected HARDCODED_TRACKING_ID on %q", name)
+		}
+	}
+	for _, name := range []string{"HTML Clarity", "HTML UET", "HTML Pinterest"} {
+		if !htmlTargets[name] {
+			t.Errorf("expected UNSAFE_CUSTOM_HTML on %q", name)
+		}
+	}
+}

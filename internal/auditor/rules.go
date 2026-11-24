@@ -16,6 +16,8 @@ var (
 	ga4LiteralRe     = regexp.MustCompile(`^G-[A-Z0-9]{4,}$`)
 	awLiteralRe      = regexp.MustCompile(`^(AW-)?[0-9]{6,}$`)
 	numericPixelRe   = regexp.MustCompile(`^[0-9]{6,}$`)
+	tiktokPixelRe    = regexp.MustCompile(`^[A-Za-z0-9]{10,}$`)
+	clarityProjectRe = regexp.MustCompile(`^[0-9a-zA-Z]{6,}$`)
 	varReferenceRe   = regexp.MustCompile(`\{\{([^}]+)\}\}`)
 	piiParamKeyExact = map[string]bool{
 		"email": true, "e_mail": true, "user_email": true, "customer_email": true,
@@ -33,7 +35,7 @@ var (
 	}
 )
 
-// Evaluate executes all 15 deterministic audit rules over snap and returns sorted findings.
+// Evaluate executes all 16 deterministic audit rules over snap and returns sorted findings.
 func Evaluate(snap *Snapshot) []Finding {
 	if snap == nil {
 		return nil
@@ -47,6 +49,7 @@ func Evaluate(snap *Snapshot) []Finding {
 	findings = append(findings, checkConsentNotSetOnMarketing(snap, tplRepoByType)...)
 	findings = append(findings, checkDeprecatedTagTypes(snap)...)
 	findings = append(findings, checkMetaDedupMissingEventID(snap, tplRepoByType)...)
+	findings = append(findings, checkPlatformDedupMissingEventID(snap, tplRepoByType)...)
 	findings = append(findings, checkDuplicateGoogleTags(snap)...)
 	findings = append(findings, checkGoogleAdsConversionLinker(snap)...)
 	findings = append(findings, checkTestEventCodeActive(snap, tplRepoByType)...)
@@ -95,6 +98,11 @@ func checkPIIExposedInParams(snap *Snapshot, tplRepoByType map[string]string) []
 		}
 		repo := tplRepoByType[tg.Type]
 		isMetaTemplate := repo == "stape-io/facebook-tag" || repo == "stape-io/fb-tag"
+		isStapeTikTok := repo == "stape-io/tiktok-web-tag"
+		isTikTokOfficial := repo == "tiktok/gtm-template-pixel" || repo == "tiktok/gtm-template-eapi"
+		isLinkedInCAPI := repo == "linkedin-developers/linkedin-capi-tag-template"
+		isPinterest := repo == "pinterest/ws-gtm-template" || tg.Type == "pntr"
+		isMicrosoftUET := tg.Type == "baut"
 		isGoogleAdsEnhanced := tg.Type == "awct" || tg.Type == "awec"
 
 		var hits []string
@@ -104,6 +112,21 @@ func checkPIIExposedInParams(snap *Snapshot, tplRepoByType map[string]string) []
 
 			// Official hashed user-data pipelines intentionally pass user fields.
 			if isMetaTemplate && (inTable == "userDataList" || strings.Contains(kNorm, "userdata")) {
+				return
+			}
+			if isStapeTikTok && (inTable == "userDataList" || strings.Contains(kNorm, "userdata")) {
+				return
+			}
+			if isTikTokOfficial && (kNorm == "email" || kNorm == "phone" || kNorm == "sha256_email" || kNorm == "sha256_phone" || kNorm == "sha256_external_id") {
+				return
+			}
+			if isLinkedInCAPI && (inTable == "userIds" || inTable == "userInfo") {
+				return
+			}
+			if isPinterest && (inTable == "advancedMatchingList" || kNorm == "em") {
+				return
+			}
+			if isMicrosoftUET && (kNorm == "p_em" || kNorm == "p_ph") {
 				return
 			}
 			if isGoogleAdsEnhanced && (kNorm == "cssprovidedenhancedconversionvalue" || kNorm == "userdata") {
@@ -156,7 +179,10 @@ func checkUnsafeCustomHTML(snap *Snapshot) []Finding {
 			strings.Contains(lower, "googletagmanager.com/gtag/js") ||
 			strings.Contains(lower, "google-analytics.com/analytics.js") ||
 			strings.Contains(lower, "analytics.tiktok.com") ||
-			strings.Contains(lower, "snap.licdn.com") {
+			strings.Contains(lower, "snap.licdn.com") ||
+			strings.Contains(lower, "clarity.ms/tag/") ||
+			strings.Contains(lower, "bat.bing.com/bat.js") ||
+			strings.Contains(lower, "s.pinimg.com/ct/core.js") {
 			reasons = append(reasons, "embeds raw vendor pixel loader replaceable by built-in or sandboxed gallery template")
 		}
 
@@ -170,7 +196,7 @@ func checkUnsafeCustomHTML(snap *Snapshot) []Finding {
 				EntityName:  tg.Name,
 				Title:       "Unsafe or replaceable Custom HTML tag",
 				Message:     fmt.Sprintf("Custom HTML tag %q %s.", tg.Name, strings.Join(reasons, "; ")),
-				Remediation: "Replace raw vendor scripts with native tags ('googtag'/'gaawe') or sandboxed Community Gallery templates (e.g., 'stape-io/fb-tag').",
+				Remediation: "Replace raw vendor scripts with native tags ('googtag'/'gaawe'/'baut') or sandboxed Community Gallery templates (e.g., 'stape-io/fb-tag', 'stape-io/tiktok-web-tag', 'microsoft/clarity-gtm-template', 'pinterest/ws-gtm-template').",
 			})
 		}
 	}
@@ -191,7 +217,7 @@ func checkConsentModeBaseline(snap *Snapshot, tplRepoByType map[string]string) [
 		if tg == nil || tg.Paused {
 			continue
 		}
-		if tg.Type == "googtag" || tg.Type == "gaawe" || tg.Type == "awct" || tg.Type == "sp" || strings.HasPrefix(tg.Type, "cvt_") || tg.Type == "html" {
+		if tg.Type == "googtag" || tg.Type == "gaawe" || tg.Type == "awct" || tg.Type == "sp" || tg.Type == "baut" || tg.Type == "pntr" || strings.HasPrefix(tg.Type, "cvt_") || tg.Type == "html" {
 			if isConsentBaselineTag(tg, tplRepoByType) {
 				hasConsentInitTag = true
 				continue
@@ -222,7 +248,7 @@ func checkConsentNotSetOnMarketing(snap *Snapshot, tplRepoByType map[string]stri
 		if tg == nil || tg.Paused {
 			continue
 		}
-		if tg.Type != "html" && !strings.HasPrefix(tg.Type, "cvt_") {
+		if tg.Type != "html" && tg.Type != "baut" && tg.Type != "pntr" && !strings.HasPrefix(tg.Type, "cvt_") {
 			continue
 		}
 		if isConsentBaselineTag(tg, tplRepoByType) {
@@ -331,6 +357,75 @@ func checkMetaDedupMissingEventID(snap *Snapshot, tplRepoByType map[string]strin
 	return out
 }
 
+func checkPlatformDedupMissingEventID(snap *Snapshot, tplRepoByType map[string]string) []Finding {
+	var out []Finding
+	for _, tg := range snap.Tags {
+		if tg == nil || tg.Paused {
+			continue
+		}
+		repo := tplRepoByType[tg.Type]
+		switch repo {
+		case "stape-io/tiktok-web-tag":
+			if strings.TrimSpace(paramValue(tg.Parameter, "eventId")) == "" {
+				out = append(out, Finding{
+					RuleID:      "PLATFORM_DEDUP_MISSING_EVENT_ID",
+					Severity:    SeverityMedium,
+					Category:    CategoryReliability,
+					EntityKind:  "tag",
+					EntityID:    tg.TagId,
+					EntityName:  tg.Name,
+					Title:       "TikTok Pixel tag missing eventId for Events API deduplication",
+					Message:     fmt.Sprintf("TikTok Pixel tag %q has no 'eventId' configured; browser and server events cannot deduplicate.", tg.Name),
+					Remediation: "Bind 'eventId' to {{VAR - Unique Event ID}} and forward event_id to sGTM (see 'tiktok-pixel-web').",
+				})
+			}
+		case "tiktok/gtm-template-eapi":
+			if strings.TrimSpace(paramValue(tg.Parameter, "event_id")) == "" {
+				out = append(out, Finding{
+					RuleID:      "PLATFORM_DEDUP_MISSING_EVENT_ID",
+					Severity:    SeverityMedium,
+					Category:    CategoryReliability,
+					EntityKind:  "tag",
+					EntityID:    tg.TagId,
+					EntityName:  tg.Name,
+					Title:       "TikTok Events API tag missing event_id for deduplication",
+					Message:     fmt.Sprintf("Server-side TikTok Events API tag %q has no 'event_id' configured.", tg.Name),
+					Remediation: "Bind 'event_id' to {{ED - event_id}} and match browser TikTok Pixel 'eventId' (see 'tiktok-events-api-sgtm').",
+				})
+			}
+		case "linkedin-developers/linkedin-capi-tag-template":
+			if strings.TrimSpace(paramValue(tg.Parameter, "eventId")) == "" {
+				out = append(out, Finding{
+					RuleID:      "PLATFORM_DEDUP_MISSING_EVENT_ID",
+					Severity:    SeverityMedium,
+					Category:    CategoryReliability,
+					EntityKind:  "tag",
+					EntityID:    tg.TagId,
+					EntityName:  tg.Name,
+					Title:       "LinkedIn CAPI tag missing eventId for deduplication",
+					Message:     fmt.Sprintf("Server-side LinkedIn CAPI tag %q has no 'eventId' configured.", tg.Name),
+					Remediation: "Bind 'eventId' to {{ED - event_id}} and match browser LinkedIn Insight Tag 'eventId' (see 'linkedin-capi-sgtm').",
+				})
+			}
+		case "pinterest/ws-gtm-template":
+			if strings.TrimSpace(paramValue(tg.Parameter, "event_id")) == "" {
+				out = append(out, Finding{
+					RuleID:      "PLATFORM_DEDUP_MISSING_EVENT_ID",
+					Severity:    SeverityMedium,
+					Category:    CategoryReliability,
+					EntityKind:  "tag",
+					EntityID:    tg.TagId,
+					EntityName:  tg.Name,
+					Title:       "Pinterest Pixel tag missing event_id for conversion deduplication",
+					Message:     fmt.Sprintf("Pinterest Pixel tag %q has no 'event_id' configured.", tg.Name),
+					Remediation: "Bind 'event_id' to {{VAR - Unique Event ID}} (see 'pinterest-tag-web').",
+				})
+			}
+		}
+	}
+	return out
+}
+
 func checkDuplicateGoogleTags(snap *Snapshot) []Finding {
 	byTagID := make(map[string][]*tagmanager.Tag)
 	for _, tg := range snap.Tags {
@@ -404,7 +499,8 @@ func checkTestEventCodeActive(snap *Snapshot, tplRepoByType map[string]string) [
 		if tg == nil || tg.Paused {
 			continue
 		}
-		if tplRepoByType[tg.Type] == "stape-io/facebook-tag" {
+		switch tplRepoByType[tg.Type] {
+		case "stape-io/facebook-tag":
 			if testID := strings.TrimSpace(paramValue(tg.Parameter, "testId")); testID != "" && !strings.HasPrefix(testID, "{{") {
 				out = append(out, Finding{
 					RuleID:      "TEST_EVENT_CODE_ACTIVE",
@@ -416,6 +512,20 @@ func checkTestEventCodeActive(snap *Snapshot, tplRepoByType map[string]string) [
 					Title:       "Hardcoded Meta CAPI testId left on active tag",
 					Message:     fmt.Sprintf("Meta CAPI tag %q has non-empty literal testId %q.", tg.Name, testID),
 					Remediation: "Clear testId before publishing to production so live conversions do not route exclusively into Test Events.",
+				})
+			}
+		case "tiktok/gtm-template-eapi":
+			if testID := strings.TrimSpace(paramValue(tg.Parameter, "test_event_code")); testID != "" && !strings.HasPrefix(testID, "{{") {
+				out = append(out, Finding{
+					RuleID:      "TEST_EVENT_CODE_ACTIVE",
+					Severity:    SeverityMedium,
+					Category:    CategoryReliability,
+					EntityKind:  "tag",
+					EntityID:    tg.TagId,
+					EntityName:  tg.Name,
+					Title:       "Hardcoded TikTok Events API test_event_code left on active tag",
+					Message:     fmt.Sprintf("TikTok Events API tag %q has non-empty literal test_event_code %q.", tg.Name, testID),
+					Remediation: "Clear test_event_code before publishing to production so live conversions do not route exclusively into Test Events.",
 				})
 			}
 		}
@@ -573,7 +683,9 @@ func checkUnusedVariables(snap *Snapshot) []Finding {
 func checkHardcodedTrackingIDs(snap *Snapshot) []Finding {
 	idKeys := map[string]bool{
 		"tagId": true, "measurementId": true, "measurementIdOverride": true,
-		"conversionId": true, "pixelId": true, "pixelIds": true, "accessToken": true,
+		"conversionId": true, "pixelId": true, "pixelIds": true,
+		"pixel_code": true, "partnerId": true, "projectId": true,
+		"accessToken": true, "apiAccessToken": true, "access_token": true,
 	}
 
 	var out []Finding
@@ -590,7 +702,10 @@ func checkHardcodedTrackingIDs(snap *Snapshot) []Finding {
 			if val == "" || strings.HasPrefix(val, "{{") {
 				continue
 			}
-			if ga4LiteralRe.MatchString(val) || awLiteralRe.MatchString(val) || numericPixelRe.MatchString(val) || p.Key == "accessToken" {
+			isTokenKey := p.Key == "accessToken" || p.Key == "apiAccessToken" || p.Key == "access_token"
+			isTikTokLiteral := (p.Key == "pixel_code" || p.Key == "pixelIds") && tiktokPixelRe.MatchString(val)
+			isClarityLiteral := p.Key == "projectId" && clarityProjectRe.MatchString(val)
+			if ga4LiteralRe.MatchString(val) || awLiteralRe.MatchString(val) || numericPixelRe.MatchString(val) || isTokenKey || isTikTokLiteral || isClarityLiteral {
 				hardcoded = append(hardcoded, p.Key)
 			}
 		}

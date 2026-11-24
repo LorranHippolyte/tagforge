@@ -29,9 +29,13 @@
 - `tagforge tracking-plan` exporting Markdown tracking documentation and typed `dataLayer.push` snippets (JS/TS, Next.js, Shopify)
 - MCP Resources (`gtm://...`) and MCP Prompts with tool fallbacks
 
-## Phase 4 — Multi-Platform Blueprints & E-commerce Packs
-- Official blueprints for TikTok Pixel + Events API, LinkedIn Insight Tag + CAPI, Microsoft Clarity & Bing UET, Pinterest Tag
-- Shopify + GTM Web/sGTM starter pack (Custom Pixel / Web Pixel `dataLayer` contract + container blueprint)
+## Phase 4 — Multi-Platform Blueprints & E-commerce Packs (Completed)
+- Official declarative blueprints (`16` total embedded in binary):
+  - **TikTok:** `tiktok-pixel-web` (`stape-io/tiktok-web-tag` + `stape-io/unique-event-id-variable`) and `tiktok-events-api-sgtm` (`tiktok/gtm-template-eapi` with `event_id` deduplication)
+  - **LinkedIn:** `linkedin-insight-web` (`linkedin/linkedin-gtm-community-template`) and `linkedin-capi-sgtm` (`linkedin-developers/linkedin-capi-tag-template` with SHA-256 user matching and `eventId`)
+  - **Microsoft:** `microsoft-clarity-web` (`microsoft/clarity-gtm-template`) and `microsoft-uet-web` (`baut` Page Load + Variable Revenue)
+  - **Pinterest:** `pinterest-tag-web` (`pinterest/ws-gtm-template` with `useGA4Ecommerce: true`)
+- Shopify + GTM starter packs: `shopify-gtm-web` (Shopify Customer Events sandbox bridge with `customerPrivacy` -> Consent Mode v2, `gtes` `page_location` override, full GA4 Ecommerce, optional Google Ads Enhanced Conversions) and `shopify-sgtm-pack` (`sgtmgaaw` forwarder ready for CAPI composition)
 
 ## Phase 5 — Multi-Platform Distribution & Optional Remote HTTP Mode
 - Automated GoReleaser publishing: macOS/Linux/Windows binaries, Homebrew Tap, Scoop/Winget manifests

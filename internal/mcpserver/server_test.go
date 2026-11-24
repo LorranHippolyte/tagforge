@@ -337,8 +337,11 @@ func TestMCPServerListToolsAndExecuteFlow(t *testing.T) {
 	}{
 		{uri: "gtm://guides", want: "consent_mode_v2"},
 		{uri: "gtm://guides/consent_mode_v2", want: "ad_personalization"},
+		{uri: "gtm://guides/shopify_custom_pixel", want: "visitorConsentCollected"},
 		{uri: "gtm://blueprints", want: "meta-pixel-web"},
 		{uri: "gtm://blueprints/meta-pixel-web", want: "stape-io"},
+		{uri: "gtm://blueprints/shopify-gtm-web", want: "Shopify - GTM Web"},
+		{uri: "gtm://blueprints/tiktok-pixel-web", want: "stape-io"},
 		{uri: "gtm://accounts", want: "Genesis Work"},
 		{uri: "gtm://accounts/1/containers/2/workspaces/3/summary", want: "GA4 - Config"},
 	} {
@@ -349,8 +352,8 @@ func TestMCPServerListToolsAndExecuteFlow(t *testing.T) {
 	}
 
 	promptsRes, err := cs.ListPrompts(ctx, &mcp.ListPromptsParams{})
-	if err != nil || len(promptsRes.Prompts) != 5 {
-		t.Fatalf("expected 5 prompts, got err=%v count=%d", err, len(promptsRes.Prompts))
+	if err != nil || len(promptsRes.Prompts) != 7 {
+		t.Fatalf("expected 7 prompts, got err=%v count=%d", err, len(promptsRes.Prompts))
 	}
 	promptRes, err := cs.GetPrompt(ctx, &mcp.GetPromptParams{
 		Name:      "setup_ecommerce",
@@ -358,5 +361,12 @@ func TestMCPServerListToolsAndExecuteFlow(t *testing.T) {
 	})
 	if err != nil || len(promptRes.Messages) == 0 {
 		t.Fatalf("GetPrompt(setup_ecommerce) failed: %v", err)
+	}
+	shopifyPrompt, err := cs.GetPrompt(ctx, &mcp.GetPromptParams{
+		Name:      "setup_shopify",
+		Arguments: map[string]string{"accountId": "1", "containerId": "2", "measurementId": "G-SHOP123"},
+	})
+	if err != nil || len(shopifyPrompt.Messages) == 0 {
+		t.Fatalf("GetPrompt(setup_shopify) failed: %v", err)
 	}
 }

@@ -290,6 +290,57 @@ func registerPrompts(srv *mcp.Server) {
 		)
 		return userPromptResult("Pre-release verification workflow", text), nil
 	})
+
+	srv.AddPrompt(&mcp.Prompt{
+		Name:        "setup_shopify",
+		Title:       "Setup Shopify Customer Events + GTM Web/sGTM",
+		Description: "Plan and safely deploy the Shopify + GTM starter pack (Customer Events bridge, GA4, Consent Mode v2, optional Meta/TikTok).",
+		Arguments: []*mcp.PromptArgument{
+			{Name: "accountId", Description: "GTM Account ID", Required: true},
+			{Name: "containerId", Description: "GTM Web Container ID", Required: true},
+			{Name: "measurementId", Description: "GA4 Measurement ID (G-...)", Required: true},
+			{Name: "serverContainerUrl", Description: "Optional first-party sGTM domain URL (https://...)", Required: false},
+			{Name: "pixelId", Description: "Optional Meta Pixel ID", Required: false},
+			{Name: "tiktokPixelId", Description: "Optional TikTok Pixel ID", Required: false},
+		},
+	}, func(_ context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
+		args := req.Params.Arguments
+		text := fmt.Sprintf(
+			"Set up Shopify Customer Events tracking on accountId=%q containerId=%q (GA4=%q, sGTM=%q, Meta=%q, TikTok=%q).\n"+
+				"1. Read 'gtm://guides/shopify_custom_pixel' and call 'gtm_blueprint_plan' for 'shopify-gtm-web' (and 'meta-pixel-web' / 'tiktok-pixel-web' when IDs are given).\n"+
+				"2. Present the planned workspace diff AND the Shopify Customer Events Custom Pixel script (including Customer Privacy -> Consent Mode v2 bridge) for approval.\n"+
+				"3. After approval, apply in a dedicated workspace via 'gtm_blueprint_apply' (createWorkspaceName='feat-shopify-gtm', importGalleryTemplates=true).\n"+
+				"4. If serverContainerUrl is set, guide the user on pairing 'shopify-sgtm-pack' on their Server container.\n"+
+				"5. Verify with 'gtm_audit' and remind the user to validate Customer Events in GA4 DebugView + Network tab.",
+			args["accountId"], args["containerId"], args["measurementId"], args["serverContainerUrl"], args["pixelId"], args["tiktokPixelId"],
+		)
+		return userPromptResult("Plan Shopify GTM Web + sGTM setup", text), nil
+	})
+
+	srv.AddPrompt(&mcp.Prompt{
+		Name:        "setup_multiplatform_ads",
+		Title:       "Setup Multi-Platform Ad Pixels (TikTok, LinkedIn, Clarity/UET, Pinterest)",
+		Description: "Plan and compose sandboxed multi-platform tracking blueprints into a GTM Web workspace with Consent Mode v2.",
+		Arguments: []*mcp.PromptArgument{
+			{Name: "accountId", Description: "GTM Account ID", Required: true},
+			{Name: "containerId", Description: "GTM Web Container ID", Required: true},
+			{Name: "tiktokPixelId", Description: "Optional TikTok Pixel ID", Required: false},
+			{Name: "linkedinPartnerId", Description: "Optional LinkedIn Partner ID", Required: false},
+			{Name: "clarityProjectId", Description: "Optional Microsoft Clarity Project ID", Required: false},
+			{Name: "uetTagId", Description: "Optional Microsoft Advertising UET Tag ID", Required: false},
+			{Name: "pinterestTagId", Description: "Optional Pinterest Tag ID", Required: false},
+		},
+	}, func(_ context.Context, req *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
+		args := req.Params.Arguments
+		text := fmt.Sprintf(
+			"Plan multi-platform ad & analytics tracking on accountId=%q containerId=%q (TikTok=%q, LinkedIn=%q, Clarity=%q, UET=%q, Pinterest=%q).\n"+
+				"1. Call 'gtm_blueprint_plan' (dry-run) for each non-empty platform ('tiktok-pixel-web', 'linkedin-insight-web', 'microsoft-clarity-web', 'microsoft-uet-web', 'pinterest-tag-web') plus 'consent-mode-v2' if no baseline exists.\n"+
+				"2. Present all planned entities, required Gallery templates, and consent mappings for user approval.\n"+
+				"3. Apply into a dedicated workspace with importGalleryTemplates=true, then validate with 'gtm_audit' and 'gtm_workspace' 'preview'.",
+			args["accountId"], args["containerId"], args["tiktokPixelId"], args["linkedinPartnerId"], args["clarityProjectId"], args["uetTagId"], args["pinterestTagId"],
+		)
+		return userPromptResult("Plan multi-platform ad tracking setup", text), nil
+	})
 }
 
 func jsonResourceResult(uri string, v any) (*mcp.ReadResourceResult, error) {

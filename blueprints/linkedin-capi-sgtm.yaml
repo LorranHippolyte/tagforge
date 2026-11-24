@@ -1,0 +1,118 @@
+id: linkedin-capi-sgtm
+name: LinkedIn Conversions API (Official Server-Side Template + Deduplication)
+version: "1.0.0"
+context: server
+category: linkedin
+description: Installs the official LinkedIn CAPI sGTM template (linkedin-developers/linkedin-capi-tag-template) wired to incoming GA4 Client conversions with SHA-256 user matching and eventId deduplication.
+docs_urls:
+  - https://learn.microsoft.com/en-us/linkedin/marketing/conversions/conversions-overview
+  - https://github.com/linkedin-developers/linkedin-capi-tag-template
+params:
+  - name: access_token
+    description: LinkedIn Conversions API OAuth Bearer Access Token (redacted in plan output)
+    required: true
+    secret: true
+  - name: conversion_rule_urn
+    description: LinkedIn Conversion Rule ID or URN (e.g. 12345678 or urn:lla:llaPartnerConversion:12345678)
+    required: true
+    pattern: "^(urn:lla:llaPartnerConversion:)?[0-9]+$"
+  - name: conversion_event
+    description: Incoming GA4 event name in sGTM that triggers this conversion rule
+    required: false
+    default: "generate_lead"
+  - name: ga4_client_name
+    description: Server-side GA4 client display name used to filter incoming events
+    required: false
+    default: "GA4"
+built_in_variables:
+  - clientName
+  - eventName
+gallery_templates:
+  - alias: linkedin_capi_tag
+    owner: linkedin-developers
+    repository: linkedin-capi-tag-template
+    acknowledge_permissions: true
+folders:
+  - key: linkedin_sgtm_folder
+    name: LinkedIn - Conversions API (sGTM)
+    notes: Managed by tagforge linkedin-capi-sgtm blueprint
+variables:
+  - key: const_linkedin_capi_token
+    name: CONST - LinkedIn CAPI Access Token
+    type: c
+    parent_folder: ref:linkedin_sgtm_folder
+    parameters:
+      - key: value
+        type: TEMPLATE
+        value: "${access_token}"
+  - key: const_linkedin_rule_urn
+    name: CONST - LinkedIn Conversion Rule URN
+    type: c
+    parent_folder: ref:linkedin_sgtm_folder
+    parameters:
+      - key: value
+        type: TEMPLATE
+        value: "${conversion_rule_urn}"
+  - key: ed_event_id
+    name: ED - event_id
+    type: ed
+    parent_folder: ref:linkedin_sgtm_folder
+    parameters:
+      - key: keyPath
+        type: TEMPLATE
+        value: event_id
+triggers:
+  - key: ce_linkedin_capi
+    name: Custom - LinkedIn CAPI Conversion Event
+    type: customEvent
+    parent_folder: ref:linkedin_sgtm_folder
+    custom_event_filters:
+      - type: equals
+        parameters:
+          - key: arg0
+            type: TEMPLATE
+            value: "{{_event}}"
+          - key: arg1
+            type: TEMPLATE
+            value: "${conversion_event}"
+    filters:
+      - type: equals
+        parameters:
+          - key: arg0
+            type: TEMPLATE
+            value: "{{Client Name}}"
+          - key: arg1
+            type: TEMPLATE
+            value: "${ga4_client_name}"
+tags:
+  - key: tag_linkedin_capi
+    name: LinkedIn - CAPI - Conversion
+    type: template_ref:linkedin_capi_tag
+    parent_folder: ref:linkedin_sgtm_folder
+    firing_triggers:
+      - "ref:ce_linkedin_capi"
+    tag_firing_option: oncePerEvent
+    consent:
+      status: needed
+      types:
+        - ad_storage
+        - ad_user_data
+        - ad_personalization
+    parameters:
+      - key: apiAccessToken
+        type: TEMPLATE
+        value: "{{CONST - LinkedIn CAPI Access Token}}"
+      - key: conversionRuleUrn
+        type: TEMPLATE
+        value: "{{CONST - LinkedIn Conversion Rule URN}}"
+      - key: eventId
+        type: TEMPLATE
+        value: "{{ED - event_id}}"
+data_layer_snippets:
+  - title: LinkedIn CAPI User Matching & Deduplication Checklist
+    language: markdown
+    description: LinkedIn CAPI requires at least one user identifier (email/SHA-256 email, linkedinFirstPartyId, acxiomID, oracle, or firstName+lastName) and matches browser Insight Tag hits via eventId.
+    code: |
+      1. Pass `user_data.email_address` (or `sha256_email_address`) / `linkedinFirstPartyId` in GA4 Event Data so linkedin-capi-tag-template can match automatically.
+      2. Ensure Web GTM forwards `event_id` ({{VAR - Unique Event ID}}) to sGTM alongside `linkedin-insight-web` conversionId hits.
+      3. Confirm server events appear as Deduplicated in LinkedIn Campaign Manager -> Measurement -> Conversions.

@@ -1,0 +1,140 @@
+id: tiktok-events-api-sgtm
+name: TikTok Events API (Server-Side GTM + Deduplication)
+version: "1.0.0"
+context: server
+category: tiktok
+description: Official TikTok Events API sGTM template (tiktok/gtm-template-eapi) configured for GA4 client ingestion and browser/server event_id deduplication.
+docs_urls:
+  - https://business-api.tiktok.com/portal/docs?id=1771100865818625
+  - https://github.com/tiktok/gtm-template-eapi
+params:
+  - name: pixel_id
+    description: TikTok Pixel ID (alphanumeric code from TikTok Events Manager)
+    required: true
+    pattern: "^[A-Za-z0-9]+$"
+  - name: access_token
+    description: TikTok Events API long-lived Access Token (redacted in plan output)
+    required: true
+    secret: true
+  - name: test_event_code
+    description: Optional TikTok Events Manager Test Event Code; clear before production publish
+    required: false
+  - name: ga4_client_name
+    description: Server-side GA4 client display name used to filter incoming events
+    required: false
+    default: "GA4"
+built_in_variables:
+  - clientName
+  - eventName
+gallery_templates:
+  - alias: tiktok_eapi_tag
+    owner: tiktok
+    repository: gtm-template-eapi
+    acknowledge_permissions: true
+folders:
+  - key: tiktok_sgtm_folder
+    name: TikTok - Events API (sGTM)
+    notes: Managed by tagforge tiktok-events-api-sgtm blueprint
+variables:
+  - key: const_tiktok_pixel_id
+    name: CONST - TikTok Pixel ID
+    type: c
+    parent_folder: ref:tiktok_sgtm_folder
+    parameters:
+      - key: value
+        type: TEMPLATE
+        value: "${pixel_id}"
+  - key: const_tiktok_token
+    name: CONST - TikTok Events API Token
+    type: c
+    parent_folder: ref:tiktok_sgtm_folder
+    parameters:
+      - key: value
+        type: TEMPLATE
+        value: "${access_token}"
+  - key: const_tiktok_test_code
+    name: CONST - TikTok Test Event Code
+    type: c
+    parent_folder: ref:tiktok_sgtm_folder
+    when_param_non_empty: test_event_code
+    parameters:
+      - key: value
+        type: TEMPLATE
+        value: "${test_event_code}"
+  - key: ed_event_id
+    name: ED - event_id
+    type: ed
+    parent_folder: ref:tiktok_sgtm_folder
+    parameters:
+      - key: keyPath
+        type: TEMPLATE
+        value: event_id
+triggers:
+  - key: ce_ga4_client
+    name: Custom - GA4 Client Incoming Events
+    type: customEvent
+    parent_folder: ref:tiktok_sgtm_folder
+    custom_event_filters:
+      - type: matchRegex
+        parameters:
+          - key: arg0
+            type: TEMPLATE
+            value: "{{_event}}"
+          - key: arg1
+            type: TEMPLATE
+            value: ".*"
+    filters:
+      - type: equals
+        parameters:
+          - key: arg0
+            type: TEMPLATE
+            value: "{{Client Name}}"
+          - key: arg1
+            type: TEMPLATE
+            value: "${ga4_client_name}"
+tags:
+  - key: tag_tiktok_eapi
+    name: TikTok - Events API - All GA4 Events
+    type: template_ref:tiktok_eapi_tag
+    parent_folder: ref:tiktok_sgtm_folder
+    firing_triggers:
+      - "ref:ce_ga4_client"
+    tag_firing_option: oncePerEvent
+    consent:
+      status: needed
+      types:
+        - ad_storage
+        - ad_user_data
+        - ad_personalization
+    parameters:
+      - key: pixel_code
+        type: TEMPLATE
+        value: "{{CONST - TikTok Pixel ID}}"
+      - key: access_token
+        type: TEMPLATE
+        value: "{{CONST - TikTok Events API Token}}"
+      - key: event
+        type: TEMPLATE
+        value: "{{Event Name}}"
+      - key: object_property_source
+        type: TEMPLATE
+        value: ga
+      - key: event_id
+        type: TEMPLATE
+        value: "{{ED - event_id}}"
+      - key: test_event_code
+        type: TEMPLATE
+        when_param_non_empty: test_event_code
+        value: "{{CONST - TikTok Test Event Code}}"
+      - key: logType
+        type: TEMPLATE
+        value: debug
+data_layer_snippets:
+  - title: Web -> sGTM TikTok Event Deduplication Checklist
+    language: markdown
+    description: Browser TikTok Pixel and Server Events API deduplicate when pixel_code, event name, and event_id match within TikTok's deduplication window.
+    code: |
+      1. Web GTM: Deploy tiktok-pixel-web with {{VAR - Unique Event ID}} mapped to eventId.
+      2. Web GTM: Forward event_id = {{VAR - Unique Event ID}} in your GA4 Event Settings (google-tag-ga4-base event_id_variable or shopify-gtm-web).
+      3. sGTM: This blueprint reads event_id via {{ED - event_id}} and maps GA4 Event Data automatically (object_property_source: ga).
+      4. Before publishing to production, clear test_event_code so live hits are not routed strictly to Test Events.

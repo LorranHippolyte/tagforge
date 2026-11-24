@@ -193,4 +193,55 @@ func TestGenerateAgainstMockServerWorkspaceAndLive(t *testing.T) {
 	if livePlan.LiveVersionID != "9" || !strings.Contains(livePlan.Snippets, "analytics.subscribe") {
 		t.Fatalf("unexpected live plan: %+v", livePlan)
 	}
+	for _, want := range []string{"customerPrivacy", "visitorConsentCollected", "event?.context?.document", "shopify_page_view"} {
+		if !strings.Contains(livePlan.Snippets, want) {
+			t.Fatalf("upgraded Shopify snippet missing %q:\n%s", want, livePlan.Snippets)
+		}
+	}
+}
+
+func TestInferPlatformSupportsPhase4Vendors(t *testing.T) {
+	snap := &auditor.Snapshot{
+		AccountID:   "1",
+		ContainerID: "2",
+		WorkspaceID: "3",
+		TargetLabel: "workspace 3",
+		Templates: []*tagmanager.CustomTemplate{
+			{TemplateId: "61", Name: "TikTok Web", GalleryReference: &tagmanager.GalleryReference{Owner: "stape-io", Repository: "tiktok-web-tag"}},
+			{TemplateId: "62", Name: "TikTok EAPI", GalleryReference: &tagmanager.GalleryReference{Owner: "tiktok", Repository: "gtm-template-eapi"}},
+			{TemplateId: "63", Name: "LinkedIn Insight", GalleryReference: &tagmanager.GalleryReference{Owner: "linkedin", Repository: "linkedin-gtm-community-template"}},
+			{TemplateId: "64", Name: "LinkedIn CAPI", GalleryReference: &tagmanager.GalleryReference{Owner: "linkedin-developers", Repository: "linkedin-capi-tag-template"}},
+			{TemplateId: "65", Name: "Microsoft Clarity", GalleryReference: &tagmanager.GalleryReference{Owner: "microsoft", Repository: "clarity-gtm-template"}},
+			{TemplateId: "66", Name: "Pinterest", GalleryReference: &tagmanager.GalleryReference{Owner: "pinterest", Repository: "ws-gtm-template"}},
+		},
+		Triggers: []*tagmanager.Trigger{
+			{TriggerId: "1", Name: "PV - All Pages", Type: "pageview"},
+		},
+		Tags: []*tagmanager.Tag{
+			{TagId: "1", Name: "TikTok Web", Type: "cvt_2_61", FiringTriggerId: []string{"1"}},
+			{TagId: "2", Name: "TikTok EAPI", Type: "cvt_2_62", FiringTriggerId: []string{"1"}},
+			{TagId: "3", Name: "LinkedIn Insight", Type: "cvt_2_63", FiringTriggerId: []string{"1"}},
+			{TagId: "4", Name: "LinkedIn CAPI", Type: "cvt_2_64", FiringTriggerId: []string{"1"}},
+			{TagId: "5", Name: "Clarity", Type: "cvt_2_65", FiringTriggerId: []string{"1"}},
+			{TagId: "6", Name: "Pinterest Gallery", Type: "cvt_2_66", FiringTriggerId: []string{"1"}},
+			{TagId: "7", Name: "Microsoft UET", Type: "baut", FiringTriggerId: []string{"1"}},
+			{TagId: "8", Name: "Shopify sGTM GA4", Type: "sgtmgaaw", FiringTriggerId: []string{"1"}},
+		},
+	}
+
+	md := BuildFromSnapshot(snap, TargetShopify).RenderMarkdown()
+	for _, want := range []string{
+		"TikTok Pixel",
+		"TikTok Events API (sGTM)",
+		"LinkedIn Insight Tag",
+		"LinkedIn CAPI (sGTM)",
+		"Microsoft Clarity",
+		"Pinterest Tag",
+		"Microsoft Advertising UET",
+		"GA4 (sGTM)",
+	} {
+		if !strings.Contains(md, want) {
+			t.Fatalf("tracking plan markdown missing platform %q:\n%s", want, md)
+		}
+	}
 }

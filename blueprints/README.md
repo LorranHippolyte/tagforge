@@ -2,7 +2,7 @@
 
 Declarative tracking blueprints live in this directory as YAML specifications embedded into the binary via `//go:embed` (`embed.go`).
 
-## Included Official Blueprints (v1)
+## Included Official Blueprints (16)
 
 | ID | Context | Description |
 |---|---|---|
@@ -13,6 +13,15 @@ Declarative tracking blueprints live in this directory as YAML specifications em
 | `consent-mode-v2` | `web` | Google Consent Mode v2 baseline (`consentInit`) |
 | `meta-pixel-web` | `web` | Sandboxed Stape Meta Pixel Web (`stape-io/fb-tag`) + Unique Event ID (`stape-io/unique-event-id-variable`) |
 | `meta-capi-sgtm` | `server` | Server-Side Meta Conversions API (`stape-io/facebook-tag`) with `event_id` deduplication |
+| `tiktok-pixel-web` | `web` | Sandboxed Stape TikTok Pixel Web (`stape-io/tiktok-web-tag`) + Unique Event ID deduplication |
+| `tiktok-events-api-sgtm` | `server` | Official Server-Side TikTok Events API (`tiktok/gtm-template-eapi`) with `event_id` deduplication |
+| `linkedin-insight-web` | `web` | Official LinkedIn Insight Tag 2.0 (`linkedin/linkedin-gtm-community-template`) + optional Conversion tracking |
+| `linkedin-capi-sgtm` | `server` | Official Server-Side LinkedIn CAPI (`linkedin-developers/linkedin-capi-tag-template`) with `eventId` deduplication |
+| `microsoft-clarity-web` | `web` | Official Microsoft Clarity (`microsoft/clarity-gtm-template`) with explicit `analytics_storage` consent |
+| `microsoft-uet-web` | `web` | Built-in Microsoft Advertising UET (`baut`) for Page Load + Variable Revenue conversions |
+| `pinterest-tag-web` | `web` | Official Pinterest Tag (`pinterest/ws-gtm-template`) with `useGA4Ecommerce: true` and `event_id` |
+| `shopify-gtm-web` | `web` | Shopify Customer Events Custom Pixel pack (Consent Mode v2 + `gtes` `page_location` override + GA4 Ecommerce + optional Ads) |
+| `shopify-sgtm-pack` | `server` | Shopify first-party sGTM GA4 Forwarder (`sgtmgaaw`) + CAPI composition playbook |
 
 ## Design Goals
 

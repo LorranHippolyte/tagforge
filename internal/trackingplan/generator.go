@@ -271,20 +271,48 @@ func RenderSnippets(plan *Plan, target SnippetTarget) string {
 
 	case TargetShopify:
 		var sb strings.Builder
-		sb.WriteString("// Shopify Customer Events (Custom Pixel) -> GTM dataLayer bridge\n")
-		sb.WriteString("window.dataLayer = window.dataLayer || [];\n\n")
+		sb.WriteString("// Shopify Customer Events (Custom Pixel) -> Consent Mode v2 + GTM dataLayer bridge\n")
+		sb.WriteString("window.dataLayer = window.dataLayer || [];\n")
+		sb.WriteString("function gtag() { window.dataLayer.push(arguments); }\n\n")
+		sb.WriteString("function applyCustomerPrivacyConsent(cp, command) {\n")
+		sb.WriteString("  if (!cp) return;\n")
+		sb.WriteString("  gtag('consent', command, {\n")
+		sb.WriteString("    analytics_storage: cp.analyticsProcessingAllowed ? 'granted' : 'denied',\n")
+		sb.WriteString("    ad_storage: cp.marketingAllowed ? 'granted' : 'denied',\n")
+		sb.WriteString("    ad_user_data: cp.marketingAllowed ? 'granted' : 'denied',\n")
+		sb.WriteString("    ad_personalization: cp.marketingAllowed ? 'granted' : 'denied'\n")
+		sb.WriteString("  });\n}\n\n")
+		sb.WriteString("applyCustomerPrivacyConsent(init && init.customerPrivacy, 'default');\n")
+		sb.WriteString("if (customerPrivacy && typeof customerPrivacy.subscribe === 'function') {\n")
+		sb.WriteString("  customerPrivacy.subscribe('visitorConsentCollected', (event) => {\n")
+		sb.WriteString("    applyCustomerPrivacyConsent(event.customerPrivacy, 'update');\n")
+		sb.WriteString("  });\n}\n\n")
+		sb.WriteString("function pageContext(event) {\n")
+		sb.WriteString("  const doc = event?.context?.document || {};\n")
+		sb.WriteString("  return { page_location: doc.location?.href, page_title: doc.title, page_referrer: doc.referrer };\n")
+		sb.WriteString("}\n\n")
+		sb.WriteString("analytics.subscribe('page_viewed', (event) => {\n")
+		sb.WriteString("  window.dataLayer.push({ event: 'shopify_page_view', ...pageContext(event) });\n});\n\n")
 		sb.WriteString("analytics.subscribe('product_viewed', (event) => {\n")
-		sb.WriteString("  const pv = event.data.productVariant;\n")
+		sb.WriteString("  const pv = event.data?.productVariant;\n")
 		sb.WriteString("  window.dataLayer.push({ ecommerce: null });\n")
-		sb.WriteString("  window.dataLayer.push({\n    event: 'view_item',\n    ecommerce: { currency: pv?.price?.currencyCode, value: pv?.price?.amount, items: [{ item_id: pv?.sku || pv?.id, item_name: pv?.product?.title, price: pv?.price?.amount, quantity: 1 }] }\n  });\n});\n\n")
+		sb.WriteString("  window.dataLayer.push({\n    event: 'view_item',\n    ...pageContext(event),\n    ecommerce: { currency: pv?.price?.currencyCode, value: pv?.price?.amount, items: [{ item_id: pv?.sku || pv?.id, item_name: pv?.product?.title, price: pv?.price?.amount, quantity: 1 }] }\n  });\n});\n\n")
 		sb.WriteString("analytics.subscribe('product_added_to_cart', (event) => {\n")
-		sb.WriteString("  const line = event.data.cartLine;\n")
+		sb.WriteString("  const line = event.data?.cartLine;\n")
 		sb.WriteString("  window.dataLayer.push({ ecommerce: null });\n")
-		sb.WriteString("  window.dataLayer.push({\n    event: 'add_to_cart',\n    ecommerce: { currency: line?.cost?.totalAmount?.currencyCode, value: line?.cost?.totalAmount?.amount, items: [{ item_id: line?.merchandise?.sku || line?.merchandise?.id, item_name: line?.merchandise?.product?.title, price: line?.merchandise?.price?.amount, quantity: line?.quantity }] }\n  });\n});\n\n")
+		sb.WriteString("  window.dataLayer.push({\n    event: 'add_to_cart',\n    ...pageContext(event),\n    ecommerce: { currency: line?.cost?.totalAmount?.currencyCode, value: line?.cost?.totalAmount?.amount, items: [{ item_id: line?.merchandise?.sku || line?.merchandise?.id, item_name: line?.merchandise?.product?.title, price: line?.merchandise?.price?.amount, quantity: line?.quantity }] }\n  });\n});\n\n")
+		sb.WriteString("analytics.subscribe('checkout_started', (event) => {\n")
+		sb.WriteString("  const checkout = event.data?.checkout;\n")
+		sb.WriteString("  window.dataLayer.push({ ecommerce: null });\n")
+		sb.WriteString("  window.dataLayer.push({\n    event: 'begin_checkout',\n    ...pageContext(event),\n    ecommerce: { currency: checkout?.totalPrice?.currencyCode, value: checkout?.totalPrice?.amount, items: (checkout?.lineItems || []).map((li) => ({ item_id: li.variant?.sku || li.variant?.id, item_name: li.title, price: li.variant?.price?.amount, quantity: li.quantity })) }\n  });\n});\n\n")
+		sb.WriteString("analytics.subscribe('payment_info_submitted', (event) => {\n")
+		sb.WriteString("  const checkout = event.data?.checkout;\n")
+		sb.WriteString("  window.dataLayer.push({ ecommerce: null });\n")
+		sb.WriteString("  window.dataLayer.push({\n    event: 'add_payment_info',\n    ...pageContext(event),\n    ecommerce: { currency: checkout?.totalPrice?.currencyCode, value: checkout?.totalPrice?.amount, items: (checkout?.lineItems || []).map((li) => ({ item_id: li.variant?.sku || li.variant?.id, item_name: li.title, price: li.variant?.price?.amount, quantity: li.quantity })) }\n  });\n});\n\n")
 		sb.WriteString("analytics.subscribe('checkout_completed', (event) => {\n")
-		sb.WriteString("  const checkout = event.data.checkout;\n")
+		sb.WriteString("  const checkout = event.data?.checkout;\n")
 		sb.WriteString("  window.dataLayer.push({ ecommerce: null });\n")
-		sb.WriteString("  window.dataLayer.push({\n    event: 'purchase',\n    user_data: { email: checkout?.email, phone_number: checkout?.phone },\n    ecommerce: {\n      transaction_id: checkout?.order?.id,\n      value: checkout?.totalPrice?.amount,\n      currency: checkout?.totalPrice?.currencyCode,\n      items: (checkout?.lineItems || []).map((li) => ({ item_id: li.variant?.sku || li.variant?.id, item_name: li.title, price: li.variant?.price?.amount, quantity: li.quantity }))\n    }\n  });\n});\n")
+		sb.WriteString("  window.dataLayer.push({\n    event: 'purchase',\n    ...pageContext(event),\n    user_data: { email: checkout?.email, phone_number: checkout?.phone },\n    ecommerce: {\n      transaction_id: checkout?.order?.id,\n      value: checkout?.totalPrice?.amount,\n      currency: checkout?.totalPrice?.currencyCode,\n      items: (checkout?.lineItems || []).map((li) => ({ item_id: li.variant?.sku || li.variant?.id, item_name: li.title, price: li.variant?.price?.amount, quantity: li.quantity }))\n    }\n  });\n});\n")
 		return strings.TrimSpace(sb.String())
 
 	default: // TargetTS
@@ -375,8 +403,14 @@ func inferPlatform(tg *tagmanager.Tag, tplDisplay map[string]string) string {
 		return "Google Tag"
 	case "gaawe":
 		return "GA4"
+	case "sgtmgaaw":
+		return "GA4 (sGTM)"
 	case "awct", "gclidw", "sp":
 		return "Google Ads"
+	case "baut":
+		return "Microsoft Advertising UET"
+	case "pntr":
+		return "Pinterest Tag"
 	case "html":
 		return "Custom HTML"
 	default:
@@ -387,6 +421,18 @@ func inferPlatform(tg *tagmanager.Tag, tplDisplay map[string]string) string {
 				return "Meta Pixel"
 			case strings.Contains(lower, "stape-io/facebook-tag"):
 				return "Meta CAPI (sGTM)"
+			case strings.Contains(lower, "stape-io/tiktok-web-tag"), strings.Contains(lower, "tiktok/gtm-template-pixel"):
+				return "TikTok Pixel"
+			case strings.Contains(lower, "tiktok/gtm-template-eapi"):
+				return "TikTok Events API (sGTM)"
+			case strings.Contains(lower, "linkedin/linkedin-gtm-community-template"):
+				return "LinkedIn Insight Tag"
+			case strings.Contains(lower, "linkedin-developers/linkedin-capi-tag-template"):
+				return "LinkedIn CAPI (sGTM)"
+			case strings.Contains(lower, "microsoft/clarity-gtm-template"):
+				return "Microsoft Clarity"
+			case strings.Contains(lower, "pinterest/ws-gtm-template"):
+				return "Pinterest Tag"
 			default:
 				return label
 			}

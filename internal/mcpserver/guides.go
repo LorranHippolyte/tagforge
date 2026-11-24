@@ -64,7 +64,30 @@ To deduplicate browser Pixel and Server CAPI events reliably:
 
 - Separate Web container (collects events & forwards to custom tagging domain) from Server container (enforces consent, enriches/strips PII via Transformations, and dispatches server-to-server CAPI hits).
 - Inspect sGTM components via 'gtm_client' (e.g. GA4 client) and 'gtm_transformation' (allow/exclude parameters).
-- Always strip test event codes ('CONST - Meta Test Event Code') before publishing to production.`,
+- Always strip test event codes ('CONST - Meta Test Event Code', 'CONST - TikTok Test Event Code') before publishing to production.`,
+
+	"shopify_custom_pixel": `# Shopify Customer Events (Custom Web Pixel) + GTM
+
+Shopify Checkout Extensibility requires loading GTM inside a sandboxed Custom Pixel ('Settings -> Customer events -> Add custom pixel'):
+1. Use the 'shopify-gtm-web' blueprint on your Web container: it sets 'send_page_view: false' on 'googtag' and binds 'GTES - Shopify GA4 Event Settings' to Data Layer 'page_location', 'page_title', and 'page_referrer' from 'event.context.document' (preventing sandbox iframe URLs from polluting GA4 reports).
+2. Bridge Shopify 'init.customerPrivacy' and 'customerPrivacy.subscribe("visitorConsentCollected", ...)' into Google Consent Mode v2 ('gtag("consent", "default"/"update", ...)') so store CMP choices sync into GTM.
+3. GTM Preview / Tag Assistant does NOT attach reliably inside Shopify's sandbox iframe. Validate tags with GA4 DebugView and browser DevTools Network ('collect?v=2' or your custom sGTM domain).
+4. Pair with 'shopify-sgtm-pack' on your sGTM container (plus 'meta-capi-sgtm' / 'tiktok-events-api-sgtm' sharing 'VAR - Unique Event ID' -> 'ED - event_id').`,
+
+	"tiktok_events_api": `# TikTok Pixel Web + Events API (sGTM) Deduplication
+
+To implement TikTok tracking cleanly without Custom HTML:
+1. Web GTM: Deploy 'tiktok-pixel-web' ('stape-io/tiktok-web-tag' + 'stape-io/unique-event-id-variable') with Google Consent Mode enabled and 'enableDataLayerMapping: true' to auto-convert GA4 events ('view_item', 'add_to_cart', 'begin_checkout', 'purchase', 'generate_lead').
+2. Forward 'event_id = {{VAR - Unique Event ID}}' via your GA4 Event Settings ('gtes') to sGTM.
+3. sGTM: Deploy 'tiktok-events-api-sgtm' ('tiktok/gtm-template-eapi') with 'object_property_source: ga' and 'event_id: {{ED - event_id}}'.
+4. Remove 'test_event_code' / clear 'CONST - TikTok Test Event Code' before publishing live.`,
+
+	"b2b_and_bing_tracking": `# LinkedIn, Microsoft Clarity/UET & Pinterest in GTM
+
+- LinkedIn Web + CAPI: Use 'linkedin-insight-web' ('linkedin/linkedin-gtm-community-template') with optional 'conversionId' + 'VAR - Unique Event ID', and pair with sGTM 'linkedin-capi-sgtm' ('linkedin-developers/linkedin-capi-tag-template') using 'eventId: {{ED - event_id}}' and SHA-256 matched user identifiers ('email_address', 'linkedinFirstPartyId', or 'firstName' + 'lastName').
+- Microsoft Clarity: Use 'microsoft-clarity-web' ('microsoft/clarity-gtm-template') gated on 'analytics_storage' and pair CMP callbacks with 'window.clarity("consentv2", ...)'.
+- Microsoft Advertising UET: Use built-in tag type 'baut' ('microsoft-uet-web') for 'PAGE_LOAD' and 'VARIABLE_REVENUE' purchase tracking alongside 'window.uetq.push("consent", ...)'.
+- Pinterest Tag: Use 'pinterest-tag-web' ('pinterest/ws-gtm-template') with 'useGA4Ecommerce: true' and 'event_id: {{VAR - Unique Event ID}}'.`,
 }
 
 // GuideTopics returns sorted available gtm_guide topics.
