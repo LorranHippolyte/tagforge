@@ -1,0 +1,142 @@
+id: consent-mode-v2
+name: Google Consent Mode v2 - Default Baseline
+version: "1.0.0"
+context: web
+category: privacy
+description: Sets Google Consent Mode v2 default states (ad_storage, analytics_storage, ad_user_data, ad_personalization) on Consent Initialization before any other tag fires.
+docs_urls:
+  - https://developers.google.com/tag-platform/security/guides/consent
+  - https://developers.google.com/tag-platform/tag-manager/web/consent
+params:
+  - name: default_ad_storage
+    description: Default ad_storage state (denied or granted)
+    required: false
+    default: "denied"
+    pattern: "^(denied|granted)$"
+  - name: default_analytics_storage
+    description: Default analytics_storage state (denied or granted)
+    required: false
+    default: "denied"
+    pattern: "^(denied|granted)$"
+  - name: default_ad_user_data
+    description: Default ad_user_data state (denied or granted)
+    required: false
+    default: "denied"
+    pattern: "^(denied|granted)$"
+  - name: default_ad_personalization
+    description: Default ad_personalization state (denied or granted)
+    required: false
+    default: "denied"
+    pattern: "^(denied|granted)$"
+  - name: wait_for_update_ms
+    description: Milliseconds Google tags wait for CMP consent update before firing
+    required: false
+    default: "500"
+    pattern: "^[0-9]+$"
+  - name: regions
+    description: Optional comma-separated ISO 3166-2 region codes (e.g. BR,EU). Empty applies globally.
+    required: false
+folders:
+  - key: consent_folder
+    name: Privacy - Consent Mode v2
+    notes: Managed by tagforge consent-mode-v2 blueprint
+variables:
+  - key: const_ad_storage
+    name: CONST - Consent Default ad_storage
+    type: c
+    parent_folder: ref:consent_folder
+    parameters:
+      - key: value
+        type: TEMPLATE
+        value: "${default_ad_storage}"
+  - key: const_analytics_storage
+    name: CONST - Consent Default analytics_storage
+    type: c
+    parent_folder: ref:consent_folder
+    parameters:
+      - key: value
+        type: TEMPLATE
+        value: "${default_analytics_storage}"
+  - key: const_ad_user_data
+    name: CONST - Consent Default ad_user_data
+    type: c
+    parent_folder: ref:consent_folder
+    parameters:
+      - key: value
+        type: TEMPLATE
+        value: "${default_ad_user_data}"
+  - key: const_ad_personalization
+    name: CONST - Consent Default ad_personalization
+    type: c
+    parent_folder: ref:consent_folder
+    parameters:
+      - key: value
+        type: TEMPLATE
+        value: "${default_ad_personalization}"
+  - key: const_wait_ms
+    name: CONST - Consent wait_for_update_ms
+    type: c
+    parent_folder: ref:consent_folder
+    parameters:
+      - key: value
+        type: TEMPLATE
+        value: "${wait_for_update_ms}"
+  - key: const_regions
+    name: CONST - Consent Mode Regions
+    type: c
+    parent_folder: ref:consent_folder
+    parameters:
+      - key: value
+        type: TEMPLATE
+        value: "${regions}"
+triggers:
+  - key: consent_init
+    name: Consent Initialization - All Pages
+    type: consentInit
+    parent_folder: ref:consent_folder
+tags:
+  - key: tag_consent_default
+    name: Consent Mode v2 - Default State
+    type: html
+    parent_folder: ref:consent_folder
+    firing_triggers:
+      - "ref:consent_init"
+    tag_firing_option: oncePerLoad
+    consent:
+      status: notNeeded
+    parameters:
+      - key: html
+        type: TEMPLATE
+        value: |
+          <script>
+            window.dataLayer = window.dataLayer || [];
+            function gtag(){dataLayer.push(arguments);}
+            (function() {
+              var cfg = {
+                ad_storage: "{{CONST - Consent Default ad_storage}}",
+                analytics_storage: "{{CONST - Consent Default analytics_storage}}",
+                ad_user_data: "{{CONST - Consent Default ad_user_data}}",
+                ad_personalization: "{{CONST - Consent Default ad_personalization}}",
+                wait_for_update: Number("{{CONST - Consent wait_for_update_ms}}") || 500
+              };
+              var rawRegions = "{{CONST - Consent Mode Regions}}";
+              if (rawRegions) {
+                var list = rawRegions.split(",").map(function(s){ return s.trim(); }).filter(Boolean);
+                if (list.length > 0) cfg.region = list;
+              }
+              gtag("consent", "default", cfg);
+            })();
+          </script>
+data_layer_snippets:
+  - title: Update Consent After CMP Banner Choice
+    language: javascript
+    description: Call from your CMP (CookieYes, OneTrust, custom banner) as soon as the user accepts or declines cookies.
+    code: |
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag("consent", "update", {
+        ad_storage: "granted",
+        analytics_storage: "granted",
+        ad_user_data: "granted",
+        ad_personalization: "granted"
+      });

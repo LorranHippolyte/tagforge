@@ -698,8 +698,9 @@ func newFoldersCmd(app *appContext) *cobra.Command {
 }
 
 func newTemplatesCmd(app *appContext) *cobra.Command {
-	cmd := &cobra.Command{Use: "templates", Short: "Inspect custom templates in a workspace"}
-	var accountID, containerID, workspaceID, templateID string
+	cmd := &cobra.Command{Use: "templates", Short: "Inspect and import custom templates in a workspace"}
+	var accountID, containerID, workspaceID, templateID, owner, repo, sha string
+	var ackPerms bool
 
 	listCmd := &cobra.Command{
 		Use:   "list",
@@ -747,7 +748,36 @@ func newTemplatesCmd(app *appContext) *cobra.Command {
 	getCmd.Flags().StringVar(&templateID, "template", "", "GTM Custom Template ID")
 	requireFlag(getCmd, "template")
 
-	cmd.AddCommand(listCmd, getCmd)
+	importCmd := &cobra.Command{
+		Use:   "import-gallery",
+		Short: "Import a template from the GTM Community Template Gallery",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			p, client, err := prepPrinterAndClient(cmd, app)
+			if err != nil {
+				return err
+			}
+			tpl, err := client.ImportTemplateFromGallery(cmd.Context(), accountID, containerID, workspaceID, gtm.ImportGalleryTemplateOptions{
+				Owner:                  owner,
+				Repository:             repo,
+				SHA:                    sha,
+				AcknowledgePermissions: ackPerms,
+			})
+			if err != nil {
+				return err
+			}
+			return p.PrintTable(tpl, []string{"TEMPLATE_ID", "NAME", "FINGERPRINT"}, [][]string{
+				{tpl.TemplateId, tpl.Name, orDash(tpl.Fingerprint)},
+			})
+		},
+	}
+	bindWorkspaceFlags(importCmd, &accountID, &containerID, &workspaceID)
+	importCmd.Flags().StringVar(&owner, "owner", "", "Gallery repository owner (e.g. stape-io)")
+	importCmd.Flags().StringVar(&repo, "repo", "", "Gallery repository name (e.g. fb-tag)")
+	importCmd.Flags().StringVar(&sha, "sha", "", "Optional commit SHA")
+	importCmd.Flags().BoolVar(&ackPerms, "acknowledge-permissions", true, "Acknowledge template permissions")
+	requireFlag(importCmd, "owner", "repo")
+
+	cmd.AddCommand(listCmd, getCmd, importCmd)
 	return cmd
 }
 

@@ -2,7 +2,7 @@
 
 **Safe, standards-compliant Google Tag Manager automation, official blueprints, and container auditing — built in Go, local-first, zero VPS required.**
 
-`tagforge` is an open-source CLI (and upcoming local MCP server) designed for engineers, analysts, and agencies who want to configure, inspect, and audit Google Tag Manager containers safely and reproducibly according to official vendor documentation (Google Tag / GA4, Google Ads, Consent Mode v2, Meta Pixel & Conversions API, and Server-Side GTM).
+`tagforge` is an open-source CLI and local MCP server designed for engineers, analysts, and agencies who want to configure, inspect, and audit Google Tag Manager containers safely and reproducibly according to official vendor documentation (Google Tag / GA4, Google Ads, Consent Mode v2, Meta Pixel & Conversions API, and Server-Side GTM).
 
 ---
 
@@ -19,13 +19,13 @@ Most existing GTM automation tools and MCP servers either expose raw API CRUD op
    - **Optimistic concurrency & pre-checks**: updates and reverts require a valid `fingerprint`; version creation inspects workspace status first and aborts on merge conflicts or empty workspaces.
    - **Duplicate name guard**: prevents accidental duplicate entities on retries.
 
-2. **Core-First Architecture (CLI Now, MCP Next)**
-   - Everything runs through a single, rate-limited, cache-aware Go core (`internal/gtm`, `internal/safety`, `internal/auth`).
-   - Use it directly from your terminal or CI pipelines today; the upcoming `tagforge mcp` (`stdio`) subcommand exposes the exact same core to Claude Code, Cursor, Claude Desktop, VS Code, and Codex without needing a remote server or VPS.
+2. **Core-First Architecture (CLI + Local MCP)**
+   - Everything runs through a single, rate-limited, cache-aware Go core (`internal/gtm`, `internal/safety`, `internal/auth`, `internal/blueprints`).
+   - Use it directly from your terminal or CI pipelines, or launch `tagforge mcp` (`stdio`) to expose the exact same core across 17 context-efficient tools to Claude Code, Cursor, Claude Desktop, VS Code, Antigravity, and Codex without needing a remote server or VPS.
 
-3. **Official, Declarative Blueprints & Deterministic Auditing *(Phases 2–3)***
-   - Upcoming declarative YAML/JSON blueprints (`//go:embed`) with `plan` (dry-run diff + `dataLayer` snippet generation) and atomic `apply` (`workspace.bulkUpdate`).
-   - Deterministic container auditing for Consent Mode v2, PII/LGPD hygiene, orphaned triggers/variables, duplicate tags, deprecated Universal Analytics tags, and Meta Pixel + CAPI `event_id` deduplication.
+3. **Official, Declarative Blueprints & Deterministic Auditing**
+   - Embedded declarative YAML blueprints (`//go:embed`) with `plan` (dry-run diff + `dataLayer` snippet generation) and atomic `apply` (`workspace.bulkUpdate`) covering Google Tag/GA4, Lead Gen, GA4 Ecommerce, Google Ads Enhanced Conversions, Consent Mode v2, Meta Pixel Web, and Meta Conversions API (sGTM).
+   - Upcoming deterministic container auditing (Phase 3) for Consent Mode v2, PII/LGPD hygiene, orphaned triggers/variables, duplicate tags, deprecated Universal Analytics tags, and Meta Pixel + CAPI `event_id` deduplication.
 
 ---
 
@@ -35,7 +35,7 @@ Most existing GTM automation tools and MCP servers either expose raw API CRUD op
 |---|---|---|
 | **Phase 0** | Independent Go repo, MIT license, CI, docs, safety contract | **Ready** |
 | **Phase 1** | Core GTM API v2 client, rate limiter, defensive cache, safety engine, OAuth PKCE + Keychain/Service Account auth, local CLI | **Ready** |
-| **Phase 2** | `tagforge mcp` (`stdio`) + Official Google, Meta & Consent Mode v2 Blueprints | Planned |
+| **Phase 2** | `tagforge mcp` (`stdio`, 17 tools) + 7 Official Google, Meta & Consent Mode v2 Blueprints (`plan`/`apply`) | **Ready** |
 | **Phase 3** | Deterministic `audit` & `tracking-plan` generator | Planned |
 | **Phase 4** | TikTok, LinkedIn, Clarity & Shopify tracking packs | Planned |
 | **Phase 5** | GoReleaser binaries, Homebrew/Scoop/npm `npx` wrapper, optional remote HTTP self-host | Planned |
@@ -121,7 +121,39 @@ tagforge workspaces create-version --account 123456 --container 789012 --workspa
 
 # Publish a version (requires full mode + explicit --confirm + fingerprint)
 tagforge versions publish --account 123456 --container 789012 --version 12 --fingerprint 1732412345 --mode full --confirm
+
+# List, plan (dry-run), and apply official tracking blueprints
+tagforge blueprints list
+tagforge blueprints plan --name google-ga4-ecommerce --account 123456 --container 789012 --workspace 5 --param measurement_id=G-XXXXXXXXXX
+tagforge blueprints apply --name meta-pixel-web --account 123456 --container 789012 --create-workspace "bp-meta-web" --import-templates --param pixel_id=123456789
 ```
+
+---
+
+## MCP Server Setup (`stdio`, Local-First)
+
+`tagforge mcp` runs locally over `stdio` using your saved `tagforge login` Keychain credentials (or `GOOGLE_SERVICE_ACCOUNT_KEY` / `GOOGLE_REFRESH_TOKEN` environment variables), keeping `stdout` strictly for JSON-RPC.
+
+### Claude Code
+
+```bash
+claude mcp add tagforge -- tagforge mcp
+```
+
+### Claude Desktop / Cursor / Antigravity / Codex
+
+```json
+{
+  "mcpServers": {
+    "tagforge": {
+      "command": "tagforge",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+*(Pass `"--mode", "read-only"` or `"--mode", "full"` in `args` if you want to override the default `workspace-only` safety policy.)*
 
 ---
 

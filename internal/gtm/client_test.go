@@ -294,3 +294,69 @@ func TestAdditionalEndpointsAndErrorTranslation(t *testing.T) {
 		t.Fatalf("expected ErrNotFound on 404, got %v", err)
 	}
 }
+
+func TestImportTemplateFromGallery(t *testing.T) {
+	var listCalls atomic.Int32
+	var gotOwner, gotRepo, gotAck, gotSHA string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/tagmanager/v2/accounts/1/containers/2/workspaces/3/templates":
+			listCalls.Add(1)
+			writeJSON(w, http.StatusOK, map[string]any{"template": []*tagmanager.CustomTemplate{}})
+		case r.Method == http.MethodPost && r.URL.Path == "/tagmanager/v2/accounts/1/containers/2/workspaces/3/templates:import_from_gallery":
+			q := r.URL.Query()
+			gotOwner = q.Get("galleryOwner")
+			gotRepo = q.Get("galleryRepository")
+			gotAck = q.Get("acknowledgePermissions")
+			gotSHA = q.Get("gallerySha")
+			writeJSON(w, http.StatusOK, map[string]any{
+				"templateId": "77",
+				"name":       "Facebook Pixel by Stape",
+				"galleryReference": map[string]any{
+					"owner":      gotOwner,
+					"repository": gotRepo,
+				},
+			})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	// read-only must block ImportTemplateFromGallery before touching network.
+	roClient := newTestClient(t, srv, &safety.Policy{Mode: safety.ModeReadOnly})
+	_, err := roClient.ImportTemplateFromGallery(context.Background(), "1", "2", "3", ImportGalleryTemplateOptions{
+		Owner:      "stape-io",
+		Repository: "fb-tag",
+	})
+	if !errors.Is(err, safety.ErrBlocked) {
+		t.Fatalf("expected ErrBlocked in read-only mode, got %v", err)
+	}
+
+	wsClient := newTestClient(t, srv, safety.DefaultPolicy())
+	// Prime template list cache.
+	if _, err := wsClient.ListTemplates(context.Background(), "1", "2", "3", ListOptions{}); err != nil {
+		t.Fatalf("ListTemplates failed: %v", err)
+	}
+
+	tpl, err := wsClient.ImportTemplateFromGallery(context.Background(), "1", "2", "3", ImportGalleryTemplateOptions{
+		Owner:                  "stape-io",
+		Repository:             "fb-tag",
+		SHA:                    "abc123",
+		AcknowledgePermissions: true,
+	})
+	if err != nil {
+		t.Fatalf("ImportTemplateFromGallery failed: %v", err)
+	}
+	if tpl.TemplateId != "77" || gotOwner != "stape-io" || gotRepo != "fb-tag" || gotAck != "true" || gotSHA != "abc123" {
+		t.Fatalf("unexpected import result: tpl=%+v owner=%s repo=%s ack=%s sha=%s", tpl, gotOwner, gotRepo, gotAck, gotSHA)
+	}
+
+	// Cache must be invalidated after import.
+	if _, err := wsClient.ListTemplates(context.Background(), "1", "2", "3", ListOptions{}); err != nil {
+		t.Fatalf("ListTemplates after import failed: %v", err)
+	}
+	if listCalls.Load() != 2 {
+		t.Fatalf("expected template cache invalidation after import; listCalls=%d", listCalls.Load())
+	}
+}

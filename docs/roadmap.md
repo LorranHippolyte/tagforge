@@ -11,12 +11,12 @@
 - `internal/gtm`: GTM API v2 client covering Web & Server-Side resources, token-bucket rate limiter + backoff, defensive snapshot cache with mutation invalidation, concurrency & pre-flight checks
 - `internal/cli` & `cmd/tagforge`: full CLI (`table` and `json` output) with unit and mock HTTP integration tests
 
-## Phase 2 — MCP Server (`stdio`) & Official Blueprints v1
-- `tagforge mcp` subcommand built on `modelcontextprotocol/go-sdk` sharing the exact `internal/gtm` and `internal/safety` core
-- Consolidated resource tools (~20 tools) to preserve LLM context window budget
-- Declarative YAML/JSON blueprints (`//go:embed`) with `blueprint plan` (dry-run diff + `dataLayer` contract) and atomic `blueprint apply` (`workspace.bulkUpdate`):
-  - **Google:** Google Tag (`googtag`), GA4 Event Settings (`gtes`), GA4 Events (`gaawe` for Lead Gen & GA4 E-commerce `sendEcommerceData`), Google Ads Conversion Linker (`gclidw`), Conversion Tracking (`awct`), Enhanced Conversions (`awec`), Consent Mode v2 (`ad_storage`, `analytics_storage`, `ad_user_data`, `ad_personalization`)
-  - **Meta:** Meta Pixel Web (Community Gallery template + unique `event_id`) and Meta Conversions API (sGTM with `event_id` deduplication, `_fbp`/`_fbc`, SHA-256 User Data, `test_event_code`)
+## Phase 2 — MCP Server (`stdio`) & Official Blueprints v1 (Completed)
+- `tagforge mcp` subcommand built on `modelcontextprotocol/go-sdk` sharing the exact `internal/gtm`, `internal/safety`, `internal/auth`, and `internal/blueprints` core
+- Consolidated resource tools (17 tools) to preserve LLM context window budget
+- Declarative YAML blueprints (`//go:embed`) with `plan` (dry-run diff + `dataLayer` contract) and atomic `apply` (`workspace.bulkUpdate`):
+  - **Google:** `google-tag-ga4-base` (`googtag` + `gtes`), `google-ga4-leadgen` (`gaawe`), `google-ga4-ecommerce` (`gaawe` + `sendEcommerceData`), `google-ads-conversions` (`gclidw` + `awct` + `awec`), `consent-mode-v2` (`consentInit` baseline)
+  - **Meta:** `meta-pixel-web` (`stape-io/fb-tag` + `stape-io/unique-event-id-variable`) and `meta-capi-sgtm` (`stape-io/facebook-tag` with `event_id` deduplication)
 
 ## Phase 3 — Deterministic Container Auditor & Tracking Plan Generator
 - `tagforge audit` (CLI + MCP tool) checking containers in code:

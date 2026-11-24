@@ -1,0 +1,89 @@
+id: google-ga4-ecommerce
+name: Google Analytics 4 - Recommended Ecommerce
+version: "1.0.0"
+context: web
+category: ecommerce
+description: Official GA4 Recommended Ecommerce (gaawe with sendEcommerceData=true from dataLayer) covering the full funnel through purchase.
+docs_urls:
+  - https://developers.google.com/analytics/devguides/collection/ga4/ecommerce?client_type=gtm
+params:
+  - name: measurement_id
+    description: GA4 Measurement ID (e.g. G-XXXXXXXXXX)
+    required: true
+    pattern: "^G-[A-Z0-9]+$"
+built_in_variables:
+  - event
+  - pageUrl
+folders:
+  - key: ga4_ecom_folder
+    name: Google - GA4 Ecommerce
+    notes: Managed by tagforge google-ga4-ecommerce blueprint
+variables:
+  - key: const_ga4_id
+    name: CONST - GA4 Measurement ID
+    type: c
+    parent_folder: ref:ga4_ecom_folder
+    parameters:
+      - key: value
+        type: TEMPLATE
+        value: "${measurement_id}"
+triggers:
+  - key: ce_ga4_ecommerce
+    name: CE - GA4 Ecommerce Events
+    type: customEvent
+    parent_folder: ref:ga4_ecom_folder
+    custom_event_filters:
+      - type: matchRegex
+        parameters:
+          - key: arg0
+            type: TEMPLATE
+            value: "{{_event}}"
+          - key: arg1
+            type: TEMPLATE
+            value: "^(view_item_list|select_item|view_item|add_to_cart|remove_from_cart|view_cart|begin_checkout|add_shipping_info|add_payment_info|purchase)$"
+tags:
+  - key: tag_ga4_ecommerce
+    name: GA4 - Event - Ecommerce
+    type: gaawe
+    parent_folder: ref:ga4_ecom_folder
+    firing_triggers:
+      - "ref:ce_ga4_ecommerce"
+    tag_firing_option: oncePerEvent
+    parameters:
+      - key: eventName
+        type: TEMPLATE
+        value: "{{Event}}"
+      - key: measurementIdOverride
+        type: TEMPLATE
+        value: "{{CONST - GA4 Measurement ID}}"
+      - key: sendEcommerceData
+        type: BOOLEAN
+        value: "true"
+      - key: getEcommerceDataFrom
+        type: TEMPLATE
+        value: dataLayer
+data_layer_snippets:
+  - title: Official GA4 Ecommerce Data Layer Contract
+    language: javascript
+    description: Always clear previous ecommerce object before pushing new ecommerce events.
+    code: |
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({ ecommerce: null });
+      window.dataLayer.push({
+        event: "purchase",
+        ecommerce: {
+          transaction_id: "T_12345",
+          value: 299.90,
+          tax: 0,
+          shipping: 19.90,
+          currency: "BRL",
+          items: [
+            {
+              item_id: "SKU_123",
+              item_name: "Product Name",
+              price: 280.00,
+              quantity: 1
+            }
+          ]
+        }
+      });

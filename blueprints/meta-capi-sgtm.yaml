@@ -1,0 +1,152 @@
+id: meta-capi-sgtm
+name: Meta Conversions API (Server-Side GTM + Deduplication)
+version: "1.0.0"
+context: server
+category: meta
+description: Official Server-Side Meta Conversions API (stape-io/facebook-tag) configured for GA4 client ingestion, automatic User Data hashing, and browser/server event_id deduplication.
+docs_urls:
+  - https://developers.facebook.com/docs/marketing-api/conversions-api
+  - https://developers.facebook.com/docs/marketing-api/conversions-api/deduplicate-pixel-and-server-events
+  - https://github.com/stape-io/facebook-tag
+params:
+  - name: pixel_id
+    description: Meta Pixel / Dataset ID (numeric)
+    required: true
+    pattern: "^[0-9]+$"
+  - name: access_token
+    description: Meta Conversions API System User Access Token (redacted in plan output)
+    required: true
+    secret: true
+  - name: test_event_code
+    description: Optional Meta Events Manager Test Event Code (e.g. TEST12345); clear before production publish
+    required: false
+  - name: ga4_client_name
+    description: Server-side GA4 client display name used to filter incoming events
+    required: false
+    default: "GA4"
+built_in_variables:
+  - clientName
+  - eventName
+gallery_templates:
+  - alias: meta_capi_tag
+    owner: stape-io
+    repository: facebook-tag
+    acknowledge_permissions: true
+folders:
+  - key: meta_capi_folder
+    name: Meta - Conversions API (sGTM)
+    notes: Managed by tagforge meta-capi-sgtm blueprint
+variables:
+  - key: const_meta_pixel_id
+    name: CONST - Meta Pixel ID
+    type: c
+    parent_folder: ref:meta_capi_folder
+    parameters:
+      - key: value
+        type: TEMPLATE
+        value: "${pixel_id}"
+  - key: const_meta_token
+    name: CONST - Meta CAPI Access Token
+    type: c
+    parent_folder: ref:meta_capi_folder
+    parameters:
+      - key: value
+        type: TEMPLATE
+        value: "${access_token}"
+  - key: const_test_code
+    name: CONST - Meta Test Event Code
+    type: c
+    parent_folder: ref:meta_capi_folder
+    when_param_non_empty: test_event_code
+    parameters:
+      - key: value
+        type: TEMPLATE
+        value: "${test_event_code}"
+  - key: ed_event_id
+    name: ED - event_id
+    type: ed
+    parent_folder: ref:meta_capi_folder
+    parameters:
+      - key: keyPath
+        type: TEMPLATE
+        value: event_id
+triggers:
+  - key: ce_ga4_client
+    name: Custom - GA4 Client Incoming Events
+    type: customEvent
+    parent_folder: ref:meta_capi_folder
+    custom_event_filters:
+      - type: matchRegex
+        parameters:
+          - key: arg0
+            type: TEMPLATE
+            value: "{{_event}}"
+          - key: arg1
+            type: TEMPLATE
+            value: ".*"
+    filters:
+      - type: equals
+        parameters:
+          - key: arg0
+            type: TEMPLATE
+            value: "{{Client Name}}"
+          - key: arg1
+            type: TEMPLATE
+            value: "${ga4_client_name}"
+tags:
+  - key: tag_meta_capi
+    name: Meta - CAPI - All GA4 Events
+    type: template_ref:meta_capi_tag
+    parent_folder: ref:meta_capi_folder
+    firing_triggers:
+      - "ref:ce_ga4_client"
+    tag_firing_option: oncePerEvent
+    consent:
+      status: needed
+      types:
+        - ad_storage
+        - ad_user_data
+        - ad_personalization
+    parameters:
+      - key: pixelId
+        type: TEMPLATE
+        value: "{{CONST - Meta Pixel ID}}"
+      - key: accessToken
+        type: TEMPLATE
+        value: "{{CONST - Meta CAPI Access Token}}"
+      - key: testId
+        type: TEMPLATE
+        when_param_non_empty: test_event_code
+        value: "{{CONST - Meta Test Event Code}}"
+      - key: inheritEventName
+        type: TEMPLATE
+        value: inherit
+      - key: actionSource
+        type: TEMPLATE
+        value: website
+      - key: autoMapServerEventData
+        type: BOOLEAN
+        value: "true"
+      - key: autoMapUserData
+        type: BOOLEAN
+        value: "true"
+      - key: serverEventDataList
+        type: LIST
+        list:
+          - type: MAP
+            map:
+              - key: name
+                type: TEMPLATE
+                value: event_id
+              - key: value
+                type: TEMPLATE
+                value: "{{ED - event_id}}"
+data_layer_snippets:
+  - title: Web -> sGTM Event Deduplication Checklist
+    language: markdown
+    description: Browser Meta Pixel and Server CAPI deduplicate only when event_name and event_id match identically.
+    code: |
+      1. Web GTM: Ensure meta-pixel-web uses {{VAR - Unique Event ID}} for eventId.
+      2. Web GTM: Pass event_id = {{VAR - Unique Event ID}} in your GA4 Event Settings (google-tag-ga4-base event_id_variable).
+      3. sGTM: This blueprint reads event_id via {{ED - event_id}} and maps it into serverEventDataList.
+      4. Meta Events Manager -> Test Events: verify both Browser and Server events show "Deduplicated".

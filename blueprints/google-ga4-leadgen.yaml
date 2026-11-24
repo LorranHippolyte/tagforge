@@ -1,0 +1,247 @@
+id: google-ga4-leadgen
+name: Google Analytics 4 - Lead Generation
+version: "1.0.0"
+context: web
+category: google
+description: Official GA4 event tracking (gaawe) for generate_lead, form_submit, and WhatsApp link clicks with Data Layer variables.
+docs_urls:
+  - https://developers.google.com/analytics/devguides/collection/ga4/reference/events?client_type=gtm#generate_lead
+  - https://support.google.com/tagmanager/answer/9442095
+params:
+  - name: measurement_id
+    description: GA4 Measurement ID (e.g. G-XXXXXXXXXX)
+    required: true
+    pattern: "^G-[A-Z0-9]+$"
+  - name: currency
+    description: Default ISO 4217 currency code when lead value is pushed
+    required: false
+    default: "BRL"
+built_in_variables:
+  - pageUrl
+  - clickUrl
+  - clickText
+  - formId
+folders:
+  - key: ga4_leadgen_folder
+    name: Google - GA4 Lead Gen
+    notes: Managed by tagforge google-ga4-leadgen blueprint
+variables:
+  - key: const_ga4_id
+    name: CONST - GA4 Measurement ID
+    type: c
+    parent_folder: ref:ga4_leadgen_folder
+    parameters:
+      - key: value
+        type: TEMPLATE
+        value: "${measurement_id}"
+  - key: dlv_lead_source
+    name: DLV - lead_source
+    type: v
+    parent_folder: ref:ga4_leadgen_folder
+    parameters:
+      - key: dataLayerVersion
+        type: INTEGER
+        value: "2"
+      - key: name
+        type: TEMPLATE
+        value: lead_source
+  - key: dlv_form_name
+    name: DLV - form_name
+    type: v
+    parent_folder: ref:ga4_leadgen_folder
+    parameters:
+      - key: dataLayerVersion
+        type: INTEGER
+        value: "2"
+      - key: name
+        type: TEMPLATE
+        value: form_name
+  - key: dlv_lead_value
+    name: DLV - lead_value
+    type: v
+    parent_folder: ref:ga4_leadgen_folder
+    parameters:
+      - key: dataLayerVersion
+        type: INTEGER
+        value: "2"
+      - key: name
+        type: TEMPLATE
+        value: value
+  - key: dlv_currency
+    name: DLV - currency
+    type: v
+    parent_folder: ref:ga4_leadgen_folder
+    parameters:
+      - key: dataLayerVersion
+        type: INTEGER
+        value: "2"
+      - key: setDefaultValue
+        type: BOOLEAN
+        value: "true"
+      - key: defaultValue
+        type: TEMPLATE
+        value: "${currency}"
+      - key: name
+        type: TEMPLATE
+        value: currency
+triggers:
+  - key: ce_generate_lead
+    name: CE - generate_lead
+    type: customEvent
+    parent_folder: ref:ga4_leadgen_folder
+    custom_event_filters:
+      - type: equals
+        parameters:
+          - key: arg0
+            type: TEMPLATE
+            value: "{{_event}}"
+          - key: arg1
+            type: TEMPLATE
+            value: generate_lead
+  - key: ce_form_submit
+    name: CE - form_submit
+    type: customEvent
+    parent_folder: ref:ga4_leadgen_folder
+    custom_event_filters:
+      - type: equals
+        parameters:
+          - key: arg0
+            type: TEMPLATE
+            value: "{{_event}}"
+          - key: arg1
+            type: TEMPLATE
+            value: form_submit
+  - key: click_whatsapp
+    name: Click - WhatsApp Link
+    type: linkClick
+    parent_folder: ref:ga4_leadgen_folder
+    filters:
+      - type: matchRegex
+        parameters:
+          - key: arg0
+            type: TEMPLATE
+            value: "{{Click URL}}"
+          - key: arg1
+            type: TEMPLATE
+            value: "(wa\\.me|api\\.whatsapp\\.com|web\\.whatsapp\\.com)"
+tags:
+  - key: tag_generate_lead
+    name: GA4 - Event - generate_lead
+    type: gaawe
+    parent_folder: ref:ga4_leadgen_folder
+    firing_triggers:
+      - "ref:ce_generate_lead"
+    tag_firing_option: oncePerEvent
+    parameters:
+      - key: eventName
+        type: TEMPLATE
+        value: generate_lead
+      - key: measurementIdOverride
+        type: TEMPLATE
+        value: "{{CONST - GA4 Measurement ID}}"
+      - key: eventSettingsTable
+        type: LIST
+        list:
+          - type: MAP
+            map:
+              - key: parameter
+                type: TEMPLATE
+                value: lead_source
+              - key: parameterValue
+                type: TEMPLATE
+                value: "{{DLV - lead_source}}"
+          - type: MAP
+            map:
+              - key: parameter
+                type: TEMPLATE
+                value: form_name
+              - key: parameterValue
+                type: TEMPLATE
+                value: "{{DLV - form_name}}"
+          - type: MAP
+            map:
+              - key: parameter
+                type: TEMPLATE
+                value: value
+              - key: parameterValue
+                type: TEMPLATE
+                value: "{{DLV - lead_value}}"
+          - type: MAP
+            map:
+              - key: parameter
+                type: TEMPLATE
+                value: currency
+              - key: parameterValue
+                type: TEMPLATE
+                value: "{{DLV - currency}}"
+  - key: tag_form_submit
+    name: GA4 - Event - form_submit
+    type: gaawe
+    parent_folder: ref:ga4_leadgen_folder
+    firing_triggers:
+      - "ref:ce_form_submit"
+    tag_firing_option: oncePerEvent
+    parameters:
+      - key: eventName
+        type: TEMPLATE
+        value: form_submit
+      - key: measurementIdOverride
+        type: TEMPLATE
+        value: "{{CONST - GA4 Measurement ID}}"
+      - key: eventSettingsTable
+        type: LIST
+        list:
+          - type: MAP
+            map:
+              - key: parameter
+                type: TEMPLATE
+                value: form_name
+              - key: parameterValue
+                type: TEMPLATE
+                value: "{{DLV - form_name}}"
+  - key: tag_whatsapp_click
+    name: GA4 - Event - whatsapp_click
+    type: gaawe
+    parent_folder: ref:ga4_leadgen_folder
+    firing_triggers:
+      - "ref:click_whatsapp"
+    tag_firing_option: oncePerEvent
+    parameters:
+      - key: eventName
+        type: TEMPLATE
+        value: whatsapp_click
+      - key: measurementIdOverride
+        type: TEMPLATE
+        value: "{{CONST - GA4 Measurement ID}}"
+      - key: eventSettingsTable
+        type: LIST
+        list:
+          - type: MAP
+            map:
+              - key: parameter
+                type: TEMPLATE
+                value: link_url
+              - key: parameterValue
+                type: TEMPLATE
+                value: "{{Click URL}}"
+          - type: MAP
+            map:
+              - key: parameter
+                type: TEMPLATE
+                value: link_text
+              - key: parameterValue
+                type: TEMPLATE
+                value: "{{Click Text}}"
+data_layer_snippets:
+  - title: Push GA4 Lead Conversion Event
+    language: javascript
+    description: Fire on validated lead/form submission (never send unhashed PII into GA4).
+    code: |
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({
+        event: "generate_lead",
+        lead_source: "landing_page_hero",
+        form_name: "orcamento_principal",
+        value: 150.0,
+        currency: "BRL"
+      });

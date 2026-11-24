@@ -1,0 +1,200 @@
+id: google-ads-conversions
+name: Google Ads - Conversion Linker + Enhanced Conversions
+version: "1.0.0"
+context: web
+category: google
+description: Official Google Ads setup combining Conversion Linker (gclidw), Conversion Tracking (awct), and User-Provided Data Enhanced Conversions (awec).
+docs_urls:
+  - https://support.google.com/tagmanager/answer/6105160
+  - https://support.google.com/google-ads/answer/9888145
+params:
+  - name: conversion_id
+    description: Google Ads Conversion ID (numeric ID without AW-, e.g. 123456789)
+    required: true
+    pattern: "^[0-9]+$"
+  - name: conversion_label
+    description: Google Ads Conversion Label string
+    required: true
+  - name: conversion_event
+    description: Custom dataLayer event name that triggers the Google Ads conversion
+    required: false
+    default: "purchase"
+  - name: default_currency
+    description: Default ISO 4217 currency code
+    required: false
+    default: "BRL"
+built_in_variables:
+  - pageUrl
+folders:
+  - key: gads_folder
+    name: Google - Ads
+    notes: Managed by tagforge google-ads-conversions blueprint
+variables:
+  - key: const_conv_id
+    name: CONST - Google Ads Conversion ID
+    type: c
+    parent_folder: ref:gads_folder
+    parameters:
+      - key: value
+        type: TEMPLATE
+        value: "${conversion_id}"
+  - key: const_conv_label
+    name: CONST - Google Ads Conversion Label
+    type: c
+    parent_folder: ref:gads_folder
+    parameters:
+      - key: value
+        type: TEMPLATE
+        value: "${conversion_label}"
+  - key: dlv_ecom_value
+    name: DLV - ecommerce.value
+    type: v
+    parent_folder: ref:gads_folder
+    parameters:
+      - key: dataLayerVersion
+        type: INTEGER
+        value: "2"
+      - key: name
+        type: TEMPLATE
+        value: ecommerce.value
+  - key: dlv_ecom_currency
+    name: DLV - ecommerce.currency
+    type: v
+    parent_folder: ref:gads_folder
+    parameters:
+      - key: dataLayerVersion
+        type: INTEGER
+        value: "2"
+      - key: setDefaultValue
+        type: BOOLEAN
+        value: "true"
+      - key: defaultValue
+        type: TEMPLATE
+        value: "${default_currency}"
+      - key: name
+        type: TEMPLATE
+        value: ecommerce.currency
+  - key: dlv_tx_id
+    name: DLV - ecommerce.transaction_id
+    type: v
+    parent_folder: ref:gads_folder
+    parameters:
+      - key: dataLayerVersion
+        type: INTEGER
+        value: "2"
+      - key: name
+        type: TEMPLATE
+        value: ecommerce.transaction_id
+  - key: dlv_user_email
+    name: DLV - user_data.email
+    type: v
+    parent_folder: ref:gads_folder
+    parameters:
+      - key: dataLayerVersion
+        type: INTEGER
+        value: "2"
+      - key: name
+        type: TEMPLATE
+        value: user_data.email
+  - key: dlv_user_phone
+    name: DLV - user_data.phone_number
+    type: v
+    parent_folder: ref:gads_folder
+    parameters:
+      - key: dataLayerVersion
+        type: INTEGER
+        value: "2"
+      - key: name
+        type: TEMPLATE
+        value: user_data.phone_number
+  - key: upd_enhanced_conv
+    name: UPD - Enhanced Conversions User Data
+    type: awec
+    parent_folder: ref:gads_folder
+    parameters:
+      - key: mode
+        type: TEMPLATE
+        value: MANUAL
+      - key: email
+        type: TEMPLATE
+        value: "{{DLV - user_data.email}}"
+      - key: phone_number
+        type: TEMPLATE
+        value: "{{DLV - user_data.phone_number}}"
+triggers:
+  - key: init_all
+    name: Init - All Pages
+    type: init
+    parent_folder: ref:gads_folder
+  - key: ce_gads_conv
+    name: CE - Google Ads Conversion
+    type: customEvent
+    parent_folder: ref:gads_folder
+    custom_event_filters:
+      - type: equals
+        parameters:
+          - key: arg0
+            type: TEMPLATE
+            value: "{{_event}}"
+          - key: arg1
+            type: TEMPLATE
+            value: "${conversion_event}"
+tags:
+  - key: tag_conversion_linker
+    name: Google Ads - Conversion Linker
+    type: gclidw
+    parent_folder: ref:gads_folder
+    firing_triggers:
+      - "ref:init_all"
+    tag_firing_option: oncePerEvent
+    parameters:
+      - key: enableCrossDomain
+        type: BOOLEAN
+        value: "false"
+  - key: tag_conversion_tracking
+    name: Google Ads - Conversion Tracking
+    type: awct
+    parent_folder: ref:gads_folder
+    firing_triggers:
+      - "ref:ce_gads_conv"
+    tag_firing_option: oncePerEvent
+    parameters:
+      - key: conversionId
+        type: TEMPLATE
+        value: "{{CONST - Google Ads Conversion ID}}"
+      - key: conversionLabel
+        type: TEMPLATE
+        value: "{{CONST - Google Ads Conversion Label}}"
+      - key: conversionValue
+        type: TEMPLATE
+        value: "{{DLV - ecommerce.value}}"
+      - key: currencyCode
+        type: TEMPLATE
+        value: "{{DLV - ecommerce.currency}}"
+      - key: orderId
+        type: TEMPLATE
+        value: "{{DLV - ecommerce.transaction_id}}"
+      - key: enableEnhancedConversion
+        type: BOOLEAN
+        value: "true"
+      - key: cssProvidedEnhancedConversionValue
+        type: TEMPLATE
+        value: "{{UPD - Enhanced Conversions User Data}}"
+data_layer_snippets:
+  - title: Google Ads Conversion + Enhanced Conversions Payload
+    language: javascript
+    description: Push user_data alongside conversion value and transaction_id so GTM hashes and sends Enhanced Conversions.
+    code: |
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({
+        event: "purchase",
+        user_data: {
+          email: "customer@example.com",
+          phone_number: "+5511999999999"
+        },
+        ecommerce: {
+          transaction_id: "T_12345",
+          value: 299.90,
+          currency: "BRL"
+        }
+      });

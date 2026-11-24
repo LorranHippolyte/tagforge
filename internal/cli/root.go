@@ -108,6 +108,8 @@ func NewRootCmd(deps Dependencies) *cobra.Command {
 	root.AddCommand(newClientsCmd(app))
 	root.AddCommand(newTransformationsCmd(app))
 	root.AddCommand(newVersionsCmd(app))
+	root.AddCommand(newBlueprintsCmd(app))
+	root.AddCommand(newMCPCmd(app))
 
 	return root
 }

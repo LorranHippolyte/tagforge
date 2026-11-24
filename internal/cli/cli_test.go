@@ -262,3 +262,91 @@ func TestCLIAuthLoginAndLogout(t *testing.T) {
 		t.Fatalf("expected ErrTokenNotFound after logout, got %v", err)
 	}
 }
+
+func TestCLIBlueprintsTemplatesAndMCPHelp(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/built_in_variables"):
+			_ = json.NewEncoder(w).Encode(map[string]any{"builtInVariable": []any{}})
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/built_in_variables"):
+			_ = json.NewEncoder(w).Encode(map[string]any{"builtInVariable": []*tagmanager.BuiltInVariable{{Type: "event"}, {Type: "pageUrl"}}})
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/templates"):
+			_ = json.NewEncoder(w).Encode(map[string]any{"template": []any{}})
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/templates:import_from_gallery"):
+			_ = json.NewEncoder(w).Encode(&tagmanager.CustomTemplate{
+				TemplateId: "81",
+				Name:       r.URL.Query().Get("galleryRepository"),
+			})
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/folders"):
+			_ = json.NewEncoder(w).Encode(map[string]any{"folder": []any{}})
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/variables"):
+			_ = json.NewEncoder(w).Encode(map[string]any{"variable": []any{}})
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/triggers"):
+			_ = json.NewEncoder(w).Encode(map[string]any{"trigger": []any{}})
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/tags"):
+			_ = json.NewEncoder(w).Encode(map[string]any{"tag": []any{}})
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/bulk_update"):
+			var body tagmanager.ProposedChange
+			_ = json.NewDecoder(r.Body).Decode(&body)
+			_ = json.NewEncoder(w).Encode(&tagmanager.BulkUpdateWorkspaceResponse{Changes: body.Changes})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	deps := mockCLIDeps(t, srv)
+
+	// blueprints list
+	out, _, err := execCLI(t, deps, "", "blueprints", "list")
+	if err != nil {
+		t.Fatalf("blueprints list failed: %v", err)
+	}
+	if !strings.Contains(out, "google-ga4-ecommerce") || !strings.Contains(out, "meta-pixel-web") {
+		t.Fatalf("unexpected blueprints list output: %s", out)
+	}
+
+	// blueprints show
+	out, _, err = execCLI(t, deps, "", "blueprints", "show", "--name", "consent-mode-v2", "--format", "json")
+	if err != nil || !strings.Contains(out, `"consent-mode-v2"`) {
+		t.Fatalf("blueprints show failed: err=%v out=%s", err, out)
+	}
+
+	// blueprints plan
+	out, _, err = execCLI(t, deps, "", "blueprints", "plan",
+		"--name", "google-ga4-ecommerce",
+		"--account", "1", "--container", "2", "--workspace", "3",
+		"--param", "measurement_id=G-CLI1234",
+		"--format", "json",
+	)
+	if err != nil || !strings.Contains(out, `"sendEcommerceData"`) {
+		t.Fatalf("blueprints plan failed: err=%v out=%s", err, out)
+	}
+
+	// blueprints apply
+	out, _, err = execCLI(t, deps, "", "blueprints", "apply",
+		"--name", "google-ga4-ecommerce",
+		"--account", "1", "--container", "2", "--workspace", "3",
+		"--param", "measurement_id=G-CLI1234",
+		"--format", "json",
+	)
+	if err != nil || !strings.Contains(out, `"appliedChanges": 4`) {
+		t.Fatalf("blueprints apply failed: err=%v out=%s", err, out)
+	}
+
+	// templates import-gallery
+	out, _, err = execCLI(t, deps, "", "templates", "import-gallery",
+		"--account", "1", "--container", "2", "--workspace", "3",
+		"--owner", "stape-io", "--repo", "fb-tag", "--format", "json",
+	)
+	if err != nil || !strings.Contains(out, `"templateId": "81"`) {
+		t.Fatalf("templates import-gallery failed: err=%v out=%s", err, out)
+	}
+
+	// mcp --help
+	out, _, err = execCLI(t, deps, "", "mcp", "--help")
+	if err != nil || !strings.Contains(out, "stdio") {
+		t.Fatalf("mcp --help failed: err=%v out=%s", err, out)
+	}
+}

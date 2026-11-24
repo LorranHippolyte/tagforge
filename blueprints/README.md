@@ -1,6 +1,18 @@
-# Blueprints Contract (Planned for Phase 2)
+# Official Declarative Blueprints
 
-Declarative tracking blueprints will live in this directory as YAML/JSON specifications embedded into the binary via `//go:embed`.
+Declarative tracking blueprints live in this directory as YAML specifications embedded into the binary via `//go:embed` (`embed.go`).
+
+## Included Official Blueprints (v1)
+
+| ID | Context | Description |
+|---|---|---|
+| `google-tag-ga4-base` | `web` | Google Tag (`googtag`) + shared Event Settings (`gtes`) |
+| `google-ga4-leadgen` | `web` | GA4 Lead Generation (`generate_lead`, `form_submit`, WhatsApp link clicks) |
+| `google-ga4-ecommerce` | `web` | GA4 Recommended Ecommerce (`gaawe` with `sendEcommerceData: true`) |
+| `google-ads-conversions` | `web` | Google Ads Conversion Linker (`gclidw`) + Conversion Tracking (`awct`) + Enhanced Conversions (`awec`) |
+| `consent-mode-v2` | `web` | Google Consent Mode v2 baseline (`consentInit`) |
+| `meta-pixel-web` | `web` | Sandboxed Stape Meta Pixel Web (`stape-io/fb-tag`) + Unique Event ID (`stape-io/unique-event-id-variable`) |
+| `meta-capi-sgtm` | `server` | Server-Side Meta Conversions API (`stape-io/facebook-tag`) with `event_id` deduplication |
 
 ## Design Goals
 

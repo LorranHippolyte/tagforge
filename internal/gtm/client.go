@@ -38,6 +38,14 @@ type CreateVersionOptions struct {
 	Notes string
 }
 
+// ImportGalleryTemplateOptions specifies a Community Template Gallery template to import.
+type ImportGalleryTemplateOptions struct {
+	Owner                  string
+	Repository             string
+	SHA                    string
+	AcknowledgePermissions bool
+}
+
 // Client wraps Google Tag Manager API v2 with safety checks, rate limiting, and snapshot caching.
 type Client struct {
 	svc       *tagmanager.Service
@@ -1353,6 +1361,43 @@ func (c *Client) GetTemplate(ctx context.Context, accountID, containerID, worksp
 		out, callErr = c.svc.Accounts.Containers.Workspaces.Templates.Get(templatePath(accountID, containerID, workspaceID, templateID)).Context(callCtx).Do()
 		return callErr
 	})
+	return out, err
+}
+
+// ImportTemplateFromGallery imports a custom template from the GTM Community Template Gallery
+// into the target workspace.
+func (c *Client) ImportTemplateFromGallery(ctx context.Context, accountID, containerID, workspaceID string, opts ImportGalleryTemplateOptions) (*tagmanager.CustomTemplate, error) {
+	if err := c.check(safety.ResourceTemplate, safety.ActionCreate, false); err != nil {
+		return nil, err
+	}
+	if err := validateWorkspaceScope(accountID, containerID, workspaceID); err != nil {
+		return nil, err
+	}
+	if err := requireNonEmpty("gallery owner", opts.Owner); err != nil {
+		return nil, err
+	}
+	if err := requireNonEmpty("gallery repository", opts.Repository); err != nil {
+		return nil, err
+	}
+
+	var out *tagmanager.CustomTemplate
+	err := c.scheduler.Do(ctx, func(callCtx context.Context) error {
+		call := c.svc.Accounts.Containers.Workspaces.Templates.
+			ImportFromGallery(workspacePath(accountID, containerID, workspaceID)).
+			GalleryOwner(strings.TrimSpace(opts.Owner)).
+			GalleryRepository(strings.TrimSpace(opts.Repository)).
+			AcknowledgePermissions(opts.AcknowledgePermissions).
+			Context(callCtx)
+		if sha := strings.TrimSpace(opts.SHA); sha != "" {
+			call = call.GallerySha(sha)
+		}
+		var callErr error
+		out, callErr = call.Do()
+		return callErr
+	})
+	if err == nil {
+		c.cache.InvalidateWorkspace(accountID, containerID, workspaceID)
+	}
 	return out, err
 }
 

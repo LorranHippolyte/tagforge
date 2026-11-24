@@ -1,0 +1,148 @@
+id: meta-pixel-web
+name: Meta Pixel Web (Stape Official Template + Deduplication Event ID)
+version: "1.0.0"
+context: web
+category: meta
+description: Installs the sandboxed Stape Meta Pixel Web template (stape-io/fb-tag) and Unique Event ID variable (stape-io/unique-event-id-variable) with Consent Mode v2 checks and sGTM event_id deduplication.
+docs_urls:
+  - https://developers.facebook.com/docs/meta-pixel
+  - https://developers.facebook.com/docs/marketing-api/conversions-api/deduplicate-pixel-and-server-events
+  - https://github.com/stape-io/fb-tag
+params:
+  - name: pixel_id
+    description: Meta Pixel / Dataset ID (numeric)
+    required: true
+    pattern: "^[0-9]+$"
+  - name: enable_consent_mode
+    description: Enable built-in GTM consent checks on Meta Pixel tags
+    required: false
+    default: "true"
+    pattern: "^(true|false)$"
+built_in_variables:
+  - event
+  - pageUrl
+gallery_templates:
+  - alias: meta_pixel_tag
+    owner: stape-io
+    repository: fb-tag
+    acknowledge_permissions: true
+  - alias: unique_event_id_var
+    owner: stape-io
+    repository: unique-event-id-variable
+    acknowledge_permissions: true
+folders:
+  - key: meta_web_folder
+    name: Meta - Pixel Web
+    notes: Managed by tagforge meta-pixel-web blueprint
+variables:
+  - key: const_meta_pixel_id
+    name: CONST - Meta Pixel ID
+    type: c
+    parent_folder: ref:meta_web_folder
+    parameters:
+      - key: value
+        type: TEMPLATE
+        value: "${pixel_id}"
+  - key: var_unique_event_id
+    name: VAR - Unique Event ID
+    type: template_ref:unique_event_id_var
+    parent_folder: ref:meta_web_folder
+triggers:
+  - key: pv_all_pages
+    name: PV - All Pages
+    type: pageview
+    parent_folder: ref:meta_web_folder
+  - key: ce_meta_events
+    name: CE - Meta Standard Events
+    type: customEvent
+    parent_folder: ref:meta_web_folder
+    custom_event_filters:
+      - type: matchRegex
+        parameters:
+          - key: arg0
+            type: TEMPLATE
+            value: "{{_event}}"
+          - key: arg1
+            type: TEMPLATE
+            value: "^(view_item|add_to_cart|begin_checkout|add_payment_info|purchase|generate_lead|sign_up|search)$"
+tags:
+  - key: tag_meta_pageview
+    name: Meta - Pixel - PageView
+    type: template_ref:meta_pixel_tag
+    parent_folder: ref:meta_web_folder
+    firing_triggers:
+      - "ref:pv_all_pages"
+    tag_firing_option: oncePerEvent
+    consent:
+      status: needed
+      types:
+        - ad_storage
+        - ad_user_data
+        - ad_personalization
+    parameters:
+      - key: pixelIds
+        type: TEMPLATE
+        value: "{{CONST - Meta Pixel ID}}"
+      - key: inheritEventName
+        type: TEMPLATE
+        value: override
+      - key: eventName
+        type: TEMPLATE
+        value: standard
+      - key: eventNameStandard
+        type: TEMPLATE
+        value: PageView
+      - key: eventId
+        type: TEMPLATE
+        value: "{{VAR - Unique Event ID}}"
+      - key: enableConsentMode
+        type: BOOLEAN
+        value: "${enable_consent_mode}"
+      - key: runInitOnce
+        type: BOOLEAN
+        value: "true"
+  - key: tag_meta_events
+    name: Meta - Pixel - Standard Events
+    type: template_ref:meta_pixel_tag
+    parent_folder: ref:meta_web_folder
+    firing_triggers:
+      - "ref:ce_meta_events"
+    tag_firing_option: oncePerEvent
+    consent:
+      status: needed
+      types:
+        - ad_storage
+        - ad_user_data
+        - ad_personalization
+    parameters:
+      - key: pixelIds
+        type: TEMPLATE
+        value: "{{CONST - Meta Pixel ID}}"
+      - key: inheritEventName
+        type: TEMPLATE
+        value: inherit
+      - key: enableDataLayerMapping
+        type: BOOLEAN
+        value: "true"
+      - key: eventId
+        type: TEMPLATE
+        value: "{{VAR - Unique Event ID}}"
+      - key: enableConsentMode
+        type: BOOLEAN
+        value: "${enable_consent_mode}"
+data_layer_snippets:
+  - title: Meta Pixel + GA4 Unified Data Layer Contract
+    language: javascript
+    description: Standard GA4 dataLayer events automatically map to Meta events (view_item->ViewContent, add_to_cart->AddToCart, begin_checkout->InitiateCheckout, purchase->Purchase, generate_lead->Lead). Pass {{VAR - Unique Event ID}} in your GA4 tag as event_id for CAPI deduplication.
+    code: |
+      window.dataLayer = window.dataLayer || [];
+      window.dataLayer.push({ ecommerce: null });
+      window.dataLayer.push({
+        event: "purchase",
+        ecommerce: {
+          transaction_id: "T_12345",
+          value: 299.90,
+          currency: "BRL",
+          items: [{ item_id: "SKU_123", item_name: "Product", price: 299.90, quantity: 1 }]
+        }
+      });

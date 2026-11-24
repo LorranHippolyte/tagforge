@@ -1,0 +1,118 @@
+id: google-tag-ga4-base
+name: Google Tag + GA4 Base Configuration
+version: "1.0.0"
+context: web
+category: google
+description: Official Google Tag (googtag) with shared GA4 Event Settings variable (gtes) fired on Initialization - All Pages.
+docs_urls:
+  - https://developers.google.com/tag-platform/gtagjs/install
+  - https://developers.google.com/tag-platform/tag-manager/api/v2/reference/accounts.containers.workspaces.tags
+params:
+  - name: measurement_id
+    description: GA4 Measurement ID (e.g. G-XXXXXXXXXX)
+    required: true
+    pattern: "^G-[A-Z0-9]+$"
+  - name: server_container_url
+    description: Optional Server-Side GTM tagging URL (e.g. https://sgtm.example.com)
+    required: false
+  - name: send_page_view
+    description: Whether the Google Tag automatically sends page_view on initialization
+    required: false
+    default: "true"
+    pattern: "^(true|false)$"
+  - name: event_id_variable
+    description: Optional GTM variable reference (e.g. "{{VAR - Unique Event ID}}") included in shared event settings for sGTM deduplication
+    required: false
+built_in_variables:
+  - pageUrl
+  - pageHostname
+  - pagePath
+folders:
+  - key: ga4_folder
+    name: Google - GA4
+    notes: Managed by tagforge google-tag-ga4-base blueprint
+variables:
+  - key: const_ga4_id
+    name: CONST - GA4 Measurement ID
+    type: c
+    parent_folder: ref:ga4_folder
+    parameters:
+      - key: value
+        type: TEMPLATE
+        value: "${measurement_id}"
+  - key: gtes_shared
+    name: GTES - GA4 Shared Event Settings
+    type: gtes
+    parent_folder: ref:ga4_folder
+    notes: Shared event parameters attached to Google Tag (GA4)
+    parameters:
+      - key: eventSettingsTable
+        type: LIST
+        list:
+          - type: MAP
+            when_param_non_empty: server_container_url
+            map:
+              - key: parameter
+                type: TEMPLATE
+                value: server_container_url
+              - key: parameterValue
+                type: TEMPLATE
+                value: "${server_container_url}"
+          - type: MAP
+            when_param_non_empty: event_id_variable
+            map:
+              - key: parameter
+                type: TEMPLATE
+                value: event_id
+              - key: parameterValue
+                type: TEMPLATE
+                value: "${event_id_variable}"
+triggers:
+  - key: init_all_pages
+    name: Init - All Pages
+    type: init
+    parent_folder: ref:ga4_folder
+tags:
+  - key: google_tag_ga4
+    name: Google Tag - GA4
+    type: googtag
+    parent_folder: ref:ga4_folder
+    firing_triggers:
+      - "ref:init_all_pages"
+    tag_firing_option: oncePerEvent
+    parameters:
+      - key: tagId
+        type: TEMPLATE
+        value: "{{CONST - GA4 Measurement ID}}"
+      - key: configSettingsTable
+        type: LIST
+        list:
+          - type: MAP
+            map:
+              - key: parameter
+                type: TEMPLATE
+                value: send_page_view
+              - key: parameterValue
+                type: TEMPLATE
+                value: "${send_page_view}"
+          - type: MAP
+            when_param_non_empty: server_container_url
+            map:
+              - key: parameter
+                type: TEMPLATE
+                value: server_container_url
+              - key: parameterValue
+                type: TEMPLATE
+                value: "${server_container_url}"
+      - key: eventSettingsVariable
+        type: TEMPLATE
+        value: "{{GTES - GA4 Shared Event Settings}}"
+data_layer_snippets:
+  - title: Verify Google Tag + GA4 Initialization
+    language: html
+    description: Install the GTM container snippet high in <head> so Initialization - All Pages fires before custom events.
+    code: |
+      <!-- Google Tag Manager installs via container snippet; verify G-XXXXXXXXXX in Tag Assistant -->
+      <script>
+        window.dataLayer = window.dataLayer || [];
+      </script>
