@@ -7,10 +7,12 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/LorranHippolyte/tagforge/internal/auditor"
 	"github.com/LorranHippolyte/tagforge/internal/auth"
 	"github.com/LorranHippolyte/tagforge/internal/blueprints"
 	"github.com/LorranHippolyte/tagforge/internal/gtm"
 	"github.com/LorranHippolyte/tagforge/internal/safety"
+	"github.com/LorranHippolyte/tagforge/internal/trackingplan"
 	"github.com/LorranHippolyte/tagforge/internal/version"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"google.golang.org/api/tagmanager/v2"
@@ -54,6 +56,9 @@ func NewServer(cfg Config) (*mcp.Server, error) {
 	registerEntityTools(srv, cfg.Client)
 	registerVersionTools(srv, cfg.Client)
 	registerBlueprintTools(srv, cfg.Client, reg)
+	registerAuditAndPlanTools(srv, cfg.Client)
+	registerResources(srv, cfg.Client, reg)
+	registerPrompts(srv)
 
 	return srv, nil
 }
@@ -792,5 +797,75 @@ func registerBlueprintTools(srv *mcp.Server, client *gtm.Client, reg *blueprints
 			return nil, nil, err
 		}
 		return textJSONResult(res)
+	})
+}
+
+func registerAuditAndPlanTools(srv *mcp.Server, client *gtm.Client) {
+	type auditIn struct {
+		AccountID   string `json:"accountId" jsonschema:"GTM Account ID"`
+		ContainerID string `json:"containerId" jsonschema:"GTM Container ID"`
+		WorkspaceID string `json:"workspaceId,omitempty" jsonschema:"GTM Workspace ID (optional when live=true)"`
+		Live        bool   `json:"live,omitempty" jsonschema:"Audit the published live container version instead of a workspace"`
+		MinSeverity string `json:"minSeverity,omitempty" jsonschema:"Minimum severity to return: critical, high, medium, or low (default low)"`
+		Format      string `json:"format,omitempty" jsonschema:"Output format: json (default) or markdown"`
+	}
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "gtm_audit",
+		Description: "Run deterministic privacy, security, Consent Mode v2, Meta deduplication, and hygiene audit on a GTM workspace or live container version.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in auditIn) (*mcp.CallToolResult, any, error) {
+		sev, err := auditor.ParseSeverity(in.MinSeverity)
+		if err != nil {
+			return nil, nil, err
+		}
+		rep, err := auditor.Run(ctx, client, auditor.Input{
+			AccountID:   in.AccountID,
+			ContainerID: in.ContainerID,
+			WorkspaceID: in.WorkspaceID,
+			Live:        in.Live,
+			MinSeverity: sev,
+		})
+		if err != nil {
+			return nil, nil, err
+		}
+		if strings.EqualFold(strings.TrimSpace(in.Format), "markdown") {
+			return &mcp.CallToolResult{
+				Content: []mcp.Content{&mcp.TextContent{Text: rep.RenderMarkdown()}},
+			}, nil, nil
+		}
+		return textJSONResult(rep)
+	})
+
+	type trackingPlanIn struct {
+		AccountID     string `json:"accountId" jsonschema:"GTM Account ID"`
+		ContainerID   string `json:"containerId" jsonschema:"GTM Container ID"`
+		WorkspaceID   string `json:"workspaceId,omitempty" jsonschema:"GTM Workspace ID (optional when live=true)"`
+		Live          bool   `json:"live,omitempty" jsonschema:"Generate tracking plan from the published live version"`
+		SnippetTarget string `json:"snippetTarget,omitempty" jsonschema:"Code snippet flavor: ts (default), js, nextjs, or shopify"`
+		Format        string `json:"format,omitempty" jsonschema:"Output format: markdown (default) or json"`
+	}
+	mcp.AddTool(srv, &mcp.Tool{
+		Name:        "gtm_tracking_plan",
+		Description: "Generate a living GTM tracking plan (events, destinations, Data Layer dictionary, and typed application snippets) from a workspace or live version.",
+	}, func(ctx context.Context, _ *mcp.CallToolRequest, in trackingPlanIn) (*mcp.CallToolResult, any, error) {
+		target, err := trackingplan.ParseSnippetTarget(in.SnippetTarget)
+		if err != nil {
+			return nil, nil, err
+		}
+		plan, err := trackingplan.Generate(ctx, client, trackingplan.Input{
+			AccountID:     in.AccountID,
+			ContainerID:   in.ContainerID,
+			WorkspaceID:   in.WorkspaceID,
+			Live:          in.Live,
+			SnippetTarget: target,
+		})
+		if err != nil {
+			return nil, nil, err
+		}
+		if strings.EqualFold(strings.TrimSpace(in.Format), "json") {
+			return textJSONResult(plan)
+		}
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{&mcp.TextContent{Text: plan.RenderMarkdown()}},
+		}, nil, nil
 	})
 }

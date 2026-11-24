@@ -86,7 +86,7 @@ func NewRootCmd(deps Dependencies) *cobra.Command {
 
 	pf := root.PersistentFlags()
 	pf.StringVar(&app.opts.Mode, "mode", app.opts.Mode, "Safety mode: read-only, workspace-only, or full (env: TAGFORGE_MODE)")
-	pf.StringVar(&app.opts.Format, "format", app.opts.Format, "Output format: table or json")
+	pf.StringVar(&app.opts.Format, "format", app.opts.Format, "Output format: table, json, or markdown")
 	pf.StringVar(&app.opts.Profile, "profile", app.opts.Profile, "Auth profile name")
 	pf.BoolVar(&app.opts.Confirm, "confirm", false, "Confirm destructive operations or live publishing")
 	pf.BoolVar(&app.opts.AllowUserPermissions, "allow-user-permissions", app.opts.AllowUserPermissions, "Unlock user_permission operations (env: TAGFORGE_ALLOW_USER_PERMISSIONS)")
@@ -109,6 +109,8 @@ func NewRootCmd(deps Dependencies) *cobra.Command {
 	root.AddCommand(newTransformationsCmd(app))
 	root.AddCommand(newVersionsCmd(app))
 	root.AddCommand(newBlueprintsCmd(app))
+	root.AddCommand(newAuditCmd(app))
+	root.AddCommand(newTrackingPlanCmd(app))
 	root.AddCommand(newMCPCmd(app))
 
 	return root

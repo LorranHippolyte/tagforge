@@ -78,9 +78,19 @@ func TestMCPServerListToolsAndExecuteFlow(t *testing.T) {
 	httpSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/tagmanager/v2/accounts":
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"account": []*tagmanager.Account{{AccountId: "1", Name: "Genesis Work"}},
+			})
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/workspaces"):
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"workspace": []*tagmanager.Workspace{{WorkspaceId: "3", Name: "Default"}},
+			})
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/version_headers"):
+			_ = json.NewEncoder(w).Encode(map[string]any{"containerVersionHeader": []any{}})
 		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/tags"):
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"tag": []*tagmanager.Tag{{TagId: "10", Name: "GA4 - Config", Type: "googtag", Fingerprint: "fp-10"}},
+				"tag": []*tagmanager.Tag{{TagId: "10", Name: "GA4 - Config", Type: "googtag", Fingerprint: "fp-10", FiringTriggerId: []string{"20"}}},
 			})
 		case r.Method == http.MethodDelete && strings.HasSuffix(r.URL.Path, "/tags/10"):
 			w.WriteHeader(http.StatusNoContent)
@@ -100,7 +110,12 @@ func TestMCPServerListToolsAndExecuteFlow(t *testing.T) {
 		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/variables"):
 			_ = json.NewEncoder(w).Encode(map[string]any{"variable": []any{}})
 		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/triggers"):
-			_ = json.NewEncoder(w).Encode(map[string]any{"trigger": []any{}})
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"trigger": []*tagmanager.Trigger{{TriggerId: "20", Name: "Init", Type: "init"}},
+			})
+		case r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/clients"),
+			r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/transformations"):
+			_ = json.NewEncoder(w).Encode(map[string]any{})
 		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/bulk_update"):
 			bulkHits.Add(1)
 			var body tagmanager.ProposedChange
@@ -128,13 +143,13 @@ func TestMCPServerListToolsAndExecuteFlow(t *testing.T) {
 	cs := connectInMemory(t, wsSrv)
 	ctx := context.Background()
 
-	// 1. Verify exactly 17 tools and short names <= 24 chars.
+	// 1. Verify exactly 19 tools and short names <= 24 chars.
 	toolsRes, err := cs.ListTools(ctx, &mcp.ListToolsParams{})
 	if err != nil {
 		t.Fatalf("ListTools failed: %v", err)
 	}
-	if len(toolsRes.Tools) != 17 {
-		t.Fatalf("expected 17 tools, got %d", len(toolsRes.Tools))
+	if len(toolsRes.Tools) != 19 {
+		t.Fatalf("expected 19 tools, got %d", len(toolsRes.Tools))
 	}
 	for _, tool := range toolsRes.Tools {
 		if len(tool.Name) > 24 {
@@ -277,5 +292,71 @@ func TestMCPServerListToolsAndExecuteFlow(t *testing.T) {
 	})
 	if err != nil || pubOK.IsError || publishHits.Load() != 1 {
 		t.Fatalf("expected publish success in full mode; err=%v isErr=%v hits=%d text=%s", err, pubOK.IsError, publishHits.Load(), resultText(t, pubOK))
+	}
+
+	// 8. gtm_audit & gtm_tracking_plan tools.
+	auditRes, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name: "gtm_audit",
+		Arguments: map[string]any{
+			"accountId":   "1",
+			"containerId": "2",
+			"workspaceId": "3",
+			"format":      "markdown",
+		},
+	})
+	if err != nil || auditRes.IsError || !strings.Contains(resultText(t, auditRes), "Health Score") {
+		t.Fatalf("gtm_audit failed: err=%v text=%s", err, resultText(t, auditRes))
+	}
+
+	tpRes, err := cs.CallTool(ctx, &mcp.CallToolParams{
+		Name: "gtm_tracking_plan",
+		Arguments: map[string]any{
+			"accountId":     "1",
+			"containerId":   "2",
+			"workspaceId":   "3",
+			"snippetTarget": "nextjs",
+		},
+	})
+	if err != nil || tpRes.IsError || !strings.Contains(resultText(t, tpRes), "GTM Tracking Plan") {
+		t.Fatalf("gtm_tracking_plan failed: err=%v text=%s", err, resultText(t, tpRes))
+	}
+
+	// 9. MCP Resources, Resource Templates, and Prompts.
+	resList, err := cs.ListResources(ctx, &mcp.ListResourcesParams{})
+	if err != nil || len(resList.Resources) != 3 {
+		t.Fatalf("expected 3 static resources, got err=%v count=%d", err, len(resList.Resources))
+	}
+	tmplList, err := cs.ListResourceTemplates(ctx, &mcp.ListResourceTemplatesParams{})
+	if err != nil || len(tmplList.ResourceTemplates) != 3 {
+		t.Fatalf("expected 3 resource templates, got err=%v count=%d", err, len(tmplList.ResourceTemplates))
+	}
+
+	for _, tc := range []struct {
+		uri  string
+		want string
+	}{
+		{uri: "gtm://guides", want: "consent_mode_v2"},
+		{uri: "gtm://guides/consent_mode_v2", want: "ad_personalization"},
+		{uri: "gtm://blueprints", want: "meta-pixel-web"},
+		{uri: "gtm://blueprints/meta-pixel-web", want: "stape-io"},
+		{uri: "gtm://accounts", want: "Genesis Work"},
+		{uri: "gtm://accounts/1/containers/2/workspaces/3/summary", want: "GA4 - Config"},
+	} {
+		readRes, readErr := cs.ReadResource(ctx, &mcp.ReadResourceParams{URI: tc.uri})
+		if readErr != nil || len(readRes.Contents) == 0 || !strings.Contains(readRes.Contents[0].Text, tc.want) {
+			t.Fatalf("ReadResource(%s) failed: err=%v contents=%+v", tc.uri, readErr, readRes)
+		}
+	}
+
+	promptsRes, err := cs.ListPrompts(ctx, &mcp.ListPromptsParams{})
+	if err != nil || len(promptsRes.Prompts) != 5 {
+		t.Fatalf("expected 5 prompts, got err=%v count=%d", err, len(promptsRes.Prompts))
+	}
+	promptRes, err := cs.GetPrompt(ctx, &mcp.GetPromptParams{
+		Name:      "setup_ecommerce",
+		Arguments: map[string]string{"accountId": "1", "containerId": "2", "measurementId": "G-ECOM123"},
+	})
+	if err != nil || len(promptRes.Messages) == 0 {
+		t.Fatalf("GetPrompt(setup_ecommerce) failed: %v", err)
 	}
 }

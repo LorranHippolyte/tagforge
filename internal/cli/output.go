@@ -12,8 +12,9 @@ import (
 type Format string
 
 const (
-	FormatTable Format = "table"
-	FormatJSON  Format = "json"
+	FormatTable    Format = "table"
+	FormatJSON     Format = "json"
+	FormatMarkdown Format = "markdown"
 )
 
 // ParseFormat validates the --format flag value.
@@ -23,8 +24,10 @@ func ParseFormat(raw string) (Format, error) {
 		return FormatTable, nil
 	case FormatJSON:
 		return FormatJSON, nil
+	case FormatMarkdown:
+		return FormatMarkdown, nil
 	default:
-		return "", fmt.Errorf("invalid format %q: must be 'table' or 'json'", raw)
+		return "", fmt.Errorf("invalid format %q: must be 'table', 'json', or 'markdown'", raw)
 	}
 }
 
@@ -79,5 +82,14 @@ func (p *Printer) PrintMessage(jsonVal any, msg string) error {
 		return p.PrintJSON(jsonVal)
 	}
 	_, err := fmt.Fprintln(p.Out, msg)
+	return err
+}
+
+// PrintMarkdown prints Markdown directly unless JSON format was explicitly requested.
+func (p *Printer) PrintMarkdown(jsonVal any, md string) error {
+	if p.Format == FormatJSON {
+		return p.PrintJSON(jsonVal)
+	}
+	_, err := fmt.Fprint(p.Out, md)
 	return err
 }

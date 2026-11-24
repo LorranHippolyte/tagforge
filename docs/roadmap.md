@@ -18,7 +18,7 @@
   - **Google:** `google-tag-ga4-base` (`googtag` + `gtes`), `google-ga4-leadgen` (`gaawe`), `google-ga4-ecommerce` (`gaawe` + `sendEcommerceData`), `google-ads-conversions` (`gclidw` + `awct` + `awec`), `consent-mode-v2` (`consentInit` baseline)
   - **Meta:** `meta-pixel-web` (`stape-io/fb-tag` + `stape-io/unique-event-id-variable`) and `meta-capi-sgtm` (`stape-io/facebook-tag` with `event_id` deduplication)
 
-## Phase 3 — Deterministic Container Auditor & Tracking Plan Generator
+## Phase 3 — Deterministic Container Auditor & Tracking Plan Generator (Completed)
 - `tagforge audit` (CLI + MCP tool) checking containers in code:
   - PII/LGPD exposure in parameters/URLs
   - Missing or misconfigured Consent Mode v2 settings

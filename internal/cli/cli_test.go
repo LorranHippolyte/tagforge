@@ -350,3 +350,89 @@ func TestCLIBlueprintsTemplatesAndMCPHelp(t *testing.T) {
 		t.Fatalf("mcp --help failed: err=%v out=%s", err, out)
 	}
 }
+
+func TestCLIAuditAndTrackingPlan(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/versions:live"):
+			_ = json.NewEncoder(w).Encode(&tagmanager.ContainerVersion{
+				ContainerVersionId: "12",
+				Name:               "Prod v12",
+				Tag: []*tagmanager.Tag{
+					{TagId: "1", Name: "Legacy UA", Type: "ua", FiringTriggerId: []string{"10"}},
+				},
+				Trigger: []*tagmanager.Trigger{
+					{TriggerId: "10", Name: "CE - purchase", Type: "customEvent", CustomEventFilter: []*tagmanager.Condition{
+						{Type: "equals", Parameter: []*tagmanager.Parameter{{Key: "arg0", Value: "{{_event}}"}, {Key: "arg1", Value: "purchase"}}},
+					}},
+				},
+			})
+		case strings.HasSuffix(r.URL.Path, "/tags"):
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"tag": []*tagmanager.Tag{
+					{TagId: "1", Name: "Legacy UA", Type: "ua", FiringTriggerId: []string{"10"}},
+				},
+			})
+		case strings.HasSuffix(r.URL.Path, "/triggers"):
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"trigger": []*tagmanager.Trigger{
+					{TriggerId: "10", Name: "CE - purchase", Type: "customEvent", CustomEventFilter: []*tagmanager.Condition{
+						{Type: "equals", Parameter: []*tagmanager.Parameter{{Key: "arg0", Value: "{{_event}}"}, {Key: "arg1", Value: "purchase"}}},
+					}},
+				},
+			})
+		case strings.HasSuffix(r.URL.Path, "/workspaces"),
+			strings.HasSuffix(r.URL.Path, "/version_headers"),
+			strings.HasSuffix(r.URL.Path, "/variables"),
+			strings.HasSuffix(r.URL.Path, "/built_in_variables"),
+			strings.HasSuffix(r.URL.Path, "/folders"),
+			strings.HasSuffix(r.URL.Path, "/templates"),
+			strings.HasSuffix(r.URL.Path, "/clients"),
+			strings.HasSuffix(r.URL.Path, "/transformations"):
+			_ = json.NewEncoder(w).Encode(map[string]any{})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	deps := mockCLIDeps(t, srv)
+
+	// audit markdown + --fail-on high should print report AND return error
+	out, _, err := execCLI(t, deps, "", "audit",
+		"--account", "1", "--container", "2", "--workspace", "3",
+		"--format", "markdown", "--fail-on", "high",
+	)
+	if err == nil || !strings.Contains(err.Error(), "audit failed") {
+		t.Fatalf("expected fail-on high error, got err=%v", err)
+	}
+	if !strings.Contains(out, "DEPRECATED_TAG_TYPE") {
+		t.Fatalf("expected audit report printed before returning error: %s", out)
+	}
+
+	// audit --live --format json
+	out, _, err = execCLI(t, deps, "", "audit",
+		"--account", "1", "--container", "2", "--live", "--format", "json",
+	)
+	if err != nil || !strings.Contains(out, `"liveVersionId": "12"`) {
+		t.Fatalf("audit --live failed: err=%v out=%s", err, out)
+	}
+
+	// tracking-plan markdown default
+	out, _, err = execCLI(t, deps, "", "tracking-plan",
+		"--account", "1", "--container", "2", "--workspace", "3",
+	)
+	if err != nil || !strings.Contains(out, "# GTM Tracking Plan") || !strings.Contains(out, `"purchase"`) {
+		t.Fatalf("tracking-plan failed: err=%v out=%s", err, out)
+	}
+
+	// tracking-plan --snippets shopify --snippets-only
+	out, _, err = execCLI(t, deps, "", "tracking-plan",
+		"--account", "1", "--container", "2", "--live",
+		"--snippets", "shopify", "--snippets-only",
+	)
+	if err != nil || !strings.Contains(out, "analytics.subscribe") {
+		t.Fatalf("tracking-plan shopify snippets-only failed: err=%v out=%s", err, out)
+	}
+}

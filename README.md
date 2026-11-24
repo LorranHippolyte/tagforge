@@ -20,12 +20,12 @@ Most existing GTM automation tools and MCP servers either expose raw API CRUD op
    - **Duplicate name guard**: prevents accidental duplicate entities on retries.
 
 2. **Core-First Architecture (CLI + Local MCP)**
-   - Everything runs through a single, rate-limited, cache-aware Go core (`internal/gtm`, `internal/safety`, `internal/auth`, `internal/blueprints`).
-   - Use it directly from your terminal or CI pipelines, or launch `tagforge mcp` (`stdio`) to expose the exact same core across 17 context-efficient tools to Claude Code, Cursor, Claude Desktop, VS Code, Antigravity, and Codex without needing a remote server or VPS.
+   - Everything runs through a single, rate-limited, cache-aware Go core (`internal/gtm`, `internal/safety`, `internal/auth`, `internal/blueprints`, `internal/auditor`, `internal/trackingplan`).
+   - Use it directly from your terminal or CI pipelines, or launch `tagforge mcp` (`stdio`) to expose the exact same core across 19 context-efficient tools, 6 resources/templates, and 5 workflow prompts to Claude Code, Cursor, Claude Desktop, VS Code, Antigravity, and Codex without needing a remote server or VPS.
 
 3. **Official, Declarative Blueprints & Deterministic Auditing**
    - Embedded declarative YAML blueprints (`//go:embed`) with `plan` (dry-run diff + `dataLayer` snippet generation) and atomic `apply` (`workspace.bulkUpdate`) covering Google Tag/GA4, Lead Gen, GA4 Ecommerce, Google Ads Enhanced Conversions, Consent Mode v2, Meta Pixel Web, and Meta Conversions API (sGTM).
-   - Upcoming deterministic container auditing (Phase 3) for Consent Mode v2, PII/LGPD hygiene, orphaned triggers/variables, duplicate tags, deprecated Universal Analytics tags, and Meta Pixel + CAPI `event_id` deduplication.
+   - Deterministic container auditing (`tagforge audit`, 15 rules) for Consent Mode v2, PII/LGPD hygiene, orphaned triggers/variables, duplicate tags, deprecated Universal Analytics tags, and Meta Pixel + CAPI `event_id` deduplication, plus living tracking plans and typed `dataLayer.push` snippet generation (`tagforge tracking-plan`).
 
 ---
 
@@ -36,7 +36,7 @@ Most existing GTM automation tools and MCP servers either expose raw API CRUD op
 | **Phase 0** | Independent Go repo, MIT license, CI, docs, safety contract | **Ready** |
 | **Phase 1** | Core GTM API v2 client, rate limiter, defensive cache, safety engine, OAuth PKCE + Keychain/Service Account auth, local CLI | **Ready** |
 | **Phase 2** | `tagforge mcp` (`stdio`, 17 tools) + 7 Official Google, Meta & Consent Mode v2 Blueprints (`plan`/`apply`) | **Ready** |
-| **Phase 3** | Deterministic `audit` & `tracking-plan` generator | Planned |
+| **Phase 3** | Deterministic `audit` (15 rules), `tracking-plan` generator (`ts`/`js`/`nextjs`/`shopify`), 19 MCP tools, 6 resources/templates & 5 prompts | **Ready** |
 | **Phase 4** | TikTok, LinkedIn, Clarity & Shopify tracking packs | Planned |
 | **Phase 5** | GoReleaser binaries, Homebrew/Scoop/npm `npx` wrapper, optional remote HTTP self-host | Planned |
 
@@ -126,6 +126,10 @@ tagforge versions publish --account 123456 --container 789012 --version 12 --fin
 tagforge blueprints list
 tagforge blueprints plan --name google-ga4-ecommerce --account 123456 --container 789012 --workspace 5 --param measurement_id=G-XXXXXXXXXX
 tagforge blueprints apply --name meta-pixel-web --account 123456 --container 789012 --create-workspace "bp-meta-web" --import-templates --param pixel_id=123456789
+
+# Audit a workspace (or --live version) and generate a tracking plan with typed snippets
+tagforge audit --account 123456 --container 789012 --workspace 5 --fail-on high --format markdown
+tagforge tracking-plan --account 123456 --container 789012 --workspace 5 --snippets nextjs --format markdown
 ```
 
 ---
@@ -162,7 +166,7 @@ claude mcp add tagforge -- tagforge mcp
 | Flag | Env Variable | Default | Description |
 |---|---|---|---|
 | `--mode` | `TAGFORGE_MODE` | `workspace-only` | Safety mode: `read-only`, `workspace-only`, `full` |
-| `--format` | — | `table` | Output format: `table` or `json` |
+| `--format` | — | `table` | Output format: `table`, `json`, or `markdown` |
 | `--profile` | — | `default` | Auth token profile name |
 | `--confirm` | — | `false` | Required for destructive actions & publishing |
 | `--allow-user-permissions` | `TAGFORGE_ALLOW_USER_PERMISSIONS` | `false` | Unlock `user_permission` operations |

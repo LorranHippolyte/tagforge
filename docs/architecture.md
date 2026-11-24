@@ -7,13 +7,13 @@
 ```text
 +-------------------------------------------------------------------+
 |                         Interfaces                                |
-|   CLI (internal/cli)   |   MCP stdio (Phase 2)   |  HTTP (Ph 5)   |
+|   CLI (internal/cli)   | MCP stdio (19 tools) |    HTTP (Ph 5)    |
 +-------------------------------------------------------------------+
                                  |
                                  v
 +-------------------------------------------------------------------+
 |                     Domain Engines                                |
-|  Blueprints Engine (Phase 2)   |   Deterministic Auditor (Ph 3)   |
+| Blueprints Engine | Deterministic Auditor | Tracking Plan Engine  |
 +-------------------------------------------------------------------+
                                  |
                                  v
@@ -24,7 +24,7 @@
 +-------------------------------------------------------------------+
 ```
 
-## Package Breakdown (Phase 1)
+## Package Breakdown
 
 - `cmd/tagforge` — Binary entrypoint wiring Cobra CLI and exit codes.
 - `internal/version` — Build metadata (`Version`, `Commit`, `Date`) injected via `-ldflags`.
@@ -35,7 +35,11 @@
   - **Defensive snapshot cache** (JSON-cloned reads with TTL and automatic workspace/container invalidation on writes).
   - **Concurrency & status guards** (mandatory `fingerprint` on updates/reverts/publish; `CreateVersion` pre-checks `GetStatus` for conflicts and empty changes).
   - **Error translation** mapping raw Google API HTTP errors into clear, actionable error types.
-- `internal/cli` — Cobra commands with `--format table|json`, clean `stdout`/`stderr` separation, and injectable dependencies for deterministic tests.
+- `internal/blueprints` — Embedded YAML blueprint loader, schema validation, dry-run diff planner (`plan`), and atomic `bulkUpdate` applier (`apply`).
+- `internal/auditor` — Deterministic container auditor (15 rules across `privacy`, `security`, `reliability`, and `hygiene`) producing scored reports (0–100, Grade A–F) for workspaces or live versions.
+- `internal/trackingplan` — Living tracking plan builder generating structured Markdown documentation and typed `dataLayer.push` snippets (`ts`, `js`, `nextjs`, `shopify`) with secret constant redaction.
+- `internal/mcpserver` — Local `stdio` MCP server exposing 19 consolidated tools, 6 resources/templates (`gtm://...`), and 5 workflow prompts backed by the shared core.
+- `internal/cli` — Cobra commands with `--format table|json|markdown`, clean `stdout`/`stderr` separation, and injectable dependencies for deterministic tests.
 
 ## Why Go + Declarative Blueprints?
 
