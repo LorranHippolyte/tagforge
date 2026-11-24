@@ -1,0 +1,45 @@
+{
+  "name": "tagforge",
+  "version": "0.1.0",
+  "description": "Safe, standards-compliant Google Tag Manager CLI & local MCP server (Go binary wrapper)",
+  "license": "MIT",
+  "homepage": "https://github.com/LorranHippolyte/tagforge",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/LorranHippolyte/tagforge.git"
+  },
+  "keywords": [
+    "gtm",
+    "google-tag-manager",
+    "mcp",
+    "model-context-protocol",
+    "ga4",
+    "analytics",
+    "shopify",
+    "consent-mode"
+  ],
+  "bin": {
+    "tagforge": "bin/tagforge.js"
+  },
+  "scripts": {
+    "postinstall": "node scripts/install.js",
+    "test": "node --test test/wrapper.test.js"
+  },
+  "files": [
+    "bin/",
+    "scripts/",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ]
+}

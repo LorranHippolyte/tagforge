@@ -112,6 +112,7 @@ func NewRootCmd(deps Dependencies) *cobra.Command {
 	root.AddCommand(newAuditCmd(app))
 	root.AddCommand(newTrackingPlanCmd(app))
 	root.AddCommand(newMCPCmd(app))
+	root.AddCommand(newServeCmd(app))
 
 	return root
 }

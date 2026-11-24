@@ -26,3 +26,7 @@ token.json
 .idea/
 .vscode/
 *.swp
+
+# npm wrapper local downloads/deps
+packaging/npm/vendor/
+packaging/npm/node_modules/

@@ -28,17 +28,64 @@ builds:
 
 archives:
   - id: default
-    format: tar.gz
+    formats:
+      - tar.gz
     name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     format_overrides:
       - goos: windows
-        format: zip
+        formats:
+          - zip
     files:
       - LICENSE
       - README.md
 
 checksum:
   name_template: checksums.txt
+  algorithm: sha256
+
+release:
+  github:
+    owner: LorranHippolyte
+    name: tagforge
+  prerelease: auto
+
+homebrew_casks:
+  - name: tagforge
+    binaries:
+      - tagforge
+    homepage: "https://github.com/LorranHippolyte/tagforge"
+    description: "Safe, standards-compliant Google Tag Manager CLI and local MCP server"
+    skip_upload: auto
+    repository:
+      owner: LorranHippolyte
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+
+scoops:
+  - name: tagforge
+    homepage: "https://github.com/LorranHippolyte/tagforge"
+    description: "Safe, standards-compliant Google Tag Manager CLI and local MCP server"
+    license: MIT
+    skip_upload: auto
+    repository:
+      owner: LorranHippolyte
+      name: scoop-bucket
+      token: "{{ .Env.SCOOP_BUCKET_TOKEN }}"
+
+winget:
+  - name: tagforge
+    publisher: LorranHippolyte
+    package_identifier: LorranHippolyte.tagforge
+    short_description: "Safe, standards-compliant Google Tag Manager CLI and local MCP server"
+    license: MIT
+    homepage: "https://github.com/LorranHippolyte/tagforge"
+    skip_upload: auto
+    repository:
+      owner: LorranHippolyte
+      name: winget-pkgs
+      token: "{{ .Env.WINGET_GITHUB_TOKEN }}"
+      pull_request:
+        enabled: true
 
 changelog:
   sort: asc

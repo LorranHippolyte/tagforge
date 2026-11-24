@@ -25,6 +25,11 @@ jobs:
         with:
           go-version-file: go.mod
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
       - name: Check formatting
         run: |
           unformatted=$(gofmt -l .)
@@ -42,3 +47,15 @@ jobs:
 
       - name: Build
         run: go build -o bin/tagforge ./cmd/tagforge
+
+      - name: Test npm wrapper
+        env:
+          TAGFORGE_BINARY_PATH: ${{ github.workspace }}/bin/tagforge
+        run: node --test packaging/npm/test/wrapper.test.js
+
+      - name: Validate GoReleaser config
+        if: runner.os == 'Linux'
+        uses: goreleaser/goreleaser-action@v7
+        with:
+          version: "~> v2"
+          args: check

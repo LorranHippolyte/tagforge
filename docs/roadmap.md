@@ -37,7 +37,7 @@
   - **Pinterest:** `pinterest-tag-web` (`pinterest/ws-gtm-template` with `useGA4Ecommerce: true`)
 - Shopify + GTM starter packs: `shopify-gtm-web` (Shopify Customer Events sandbox bridge with `customerPrivacy` -> Consent Mode v2, `gtes` `page_location` override, full GA4 Ecommerce, optional Google Ads Enhanced Conversions) and `shopify-sgtm-pack` (`sgtmgaaw` forwarder ready for CAPI composition)
 
-## Phase 5 — Multi-Platform Distribution & Optional Remote HTTP Mode
-- Automated GoReleaser publishing: macOS/Linux/Windows binaries, Homebrew Tap, Scoop/Winget manifests
-- Thin npm package (`npx -y tagforge`) distributing native platform binaries
-- Optional `tagforge serve --http` (MCP Streamable HTTP + Google OAuth) for self-hosted team deployments or web-only MCP connectors
+## Phase 5 — Multi-Platform Distribution & Optional Remote HTTP Mode (Completed)
+- Automated GoReleaser v2 publishing (`.goreleaser.yaml` + `.github/workflows/release.yml`): static macOS/Linux/Windows binaries (`amd64`/`arm64`), SHA-256 `checksums.txt`, Homebrew Cask tap, Scoop bucket, and WinGet PR automation
+- Thin zero-dependency npm package (`packaging/npm`, `npx -y tagforge` / `pnpm dlx tagforge`) downloading and SHA-256 verifying official GitHub Release binaries
+- Optional `tagforge serve --http` (MCP Streamable HTTP with `/healthz`, constant-time Bearer token auth, non-loopback refusal without auth, and strict CORS allowlist) + `Dockerfile` & `deploy/docker-compose.yml`

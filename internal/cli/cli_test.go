@@ -436,3 +436,25 @@ func TestCLIAuditAndTrackingPlan(t *testing.T) {
 		t.Fatalf("tracking-plan shopify snippets-only failed: err=%v out=%s", err, out)
 	}
 }
+
+func TestCLIServeHelpAndValidation(t *testing.T) {
+	out, _, err := execCLI(t, Dependencies{}, "", "serve", "--help")
+	if err != nil {
+		t.Fatalf("serve --help failed: %v", err)
+	}
+	for _, flag := range []string{"--http", "--addr", "--auth-token"} {
+		if !strings.Contains(out, flag) {
+			t.Fatalf("serve --help missing flag %q: %s", flag, out)
+		}
+	}
+
+	_, _, err = execCLI(t, Dependencies{}, "", "serve", "--http", "--addr", "0.0.0.0:8080")
+	if err == nil || !strings.Contains(err.Error(), "--auth-token") {
+		t.Fatalf("expected non-loopback refusal mentioning --auth-token, got %v", err)
+	}
+
+	_, _, err = execCLI(t, Dependencies{}, "", "serve", "--http=false")
+	if err == nil || !strings.Contains(err.Error(), "tagforge mcp") {
+		t.Fatalf("expected --http=false error mentioning tagforge mcp, got %v", err)
+	}
+}

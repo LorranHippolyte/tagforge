@@ -27,7 +27,7 @@ type Config struct {
 	Version      string
 }
 
-// NewServer constructs an MCP Server exposing all 17 tagforge tools.
+// NewServer constructs an MCP Server exposing all 19 tagforge tools, 6 resources/templates, and 7 prompts.
 func NewServer(cfg Config) (*mcp.Server, error) {
 	if cfg.Client == nil {
 		return nil, errors.New("gtm client is required")

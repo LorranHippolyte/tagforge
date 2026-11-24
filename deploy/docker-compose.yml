@@ -1,0 +1,26 @@
+services:
+  tagforge-mcp:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    image: ghcr.io/lorranhippolyte/tagforge:latest
+    container_name: tagforge-mcp
+    restart: unless-stopped
+    # Bind strictly to localhost when placing behind Traefik / Caddy / Dokploy reverse proxy TLS termination.
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      # Safe default blocks live publishing & container deletion over remote HTTP:
+      TAGFORGE_MODE: "workspace-only"
+      TAGFORGE_HTTP_ADDR: "0.0.0.0:8080"
+      # Mandatory when binding 0.0.0.0 without --allow-insecure-no-auth:
+      TAGFORGE_HTTP_AUTH_TOKEN: "${TAGFORGE_HTTP_AUTH_TOKEN:?Set TAGFORGE_HTTP_AUTH_TOKEN before starting}"
+      # Choose Service Account JSON OR OAuth Refresh Token credentials:
+      GOOGLE_APPLICATION_CREDENTIALS: "/run/secrets/gtm-service-account.json"
+      # GOOGLE_SERVICE_ACCOUNT_KEY: "${GOOGLE_SERVICE_ACCOUNT_KEY}"
+      # GOOGLE_CLIENT_ID: "${GOOGLE_CLIENT_ID}"
+      # GOOGLE_CLIENT_SECRET: "${GOOGLE_CLIENT_SECRET}"
+      # GOOGLE_REFRESH_TOKEN: "${GOOGLE_REFRESH_TOKEN}"
+    volumes:
+      - ./gtm-service-account.json:/run/secrets/gtm-service-account.json:ro
+    # Distroless image has no shell; external orchestrators (Traefik/Dokploy/K8s) should poll HTTP GET /healthz on port 8080.

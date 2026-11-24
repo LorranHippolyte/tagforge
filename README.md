@@ -38,7 +38,7 @@ Most existing GTM automation tools and MCP servers either expose raw API CRUD op
 | **Phase 2** | `tagforge mcp` (`stdio`, 17 tools) + Official Google, Meta & Consent Mode v2 Blueprints (`plan`/`apply`) | **Ready** |
 | **Phase 3** | Deterministic `audit`, `tracking-plan` generator (`ts`/`js`/`nextjs`/`shopify`), 19 MCP tools, 6 resources/templates & 5 prompts | **Ready** |
 | **Phase 4** | 16 total Blueprints (TikTok, LinkedIn, Microsoft Clarity/UET, Pinterest + Shopify Web/sGTM Customer Events packs), 16 audit rules, 7 MCP prompts | **Ready** |
-| **Phase 5** | GoReleaser binaries, Homebrew/Scoop/npm `npx` wrapper, optional remote HTTP self-host | Planned |
+| **Phase 5** | GoReleaser v2 binaries (Homebrew Cask, Scoop, WinGet), thin `npx` wrapper (`packaging/npm`), optional Streamable HTTP MCP (`tagforge serve --http`) & Docker | **Ready** |
 
 See [docs/roadmap.md](docs/roadmap.md) for details.
 
@@ -46,7 +46,24 @@ See [docs/roadmap.md](docs/roadmap.md) for details.
 
 ## Installation
 
-> Prebuilt binaries (Homebrew, Scoop, Winget, and `npx tagforge` wrapper) arrive in Phase 5 via GoReleaser. Today you can build or install directly with Go 1.26+.
+### Package Managers & `npx` (Recommended for Releases)
+
+- **Homebrew (macOS & Linux):**
+  ```bash
+  brew install LorranHippolyte/tap/tagforge
+  ```
+- **npx / pnpm (`Node >= 18`, downloads & SHA-256 verifies native binary):**
+  ```bash
+  npx -y tagforge version
+  pnpm dlx tagforge blueprints list
+  ```
+- **Scoop / WinGet (Windows):**
+  ```powershell
+  scoop bucket add lorran https://github.com/LorranHippolyte/scoop-bucket
+  scoop install tagforge
+  # or
+  winget install LorranHippolyte.tagforge
+  ```
 
 ### From Source (Go 1.26+)
 
@@ -161,6 +178,17 @@ claude mcp add tagforge -- tagforge mcp
 
 *(Pass `"--mode", "read-only"` or `"--mode", "full"` in `args` if you want to override the default `workspace-only` safety policy.)*
 
+### Optional Remote Streamable HTTP Mode (`tagforge serve --http`)
+
+For shared team deployments or web-based MCP connectors, run `tagforge serve --http` behind an HTTPS reverse proxy (non-loopback addresses require `--auth-token` / `TAGFORGE_HTTP_AUTH_TOKEN`):
+
+```bash
+export TAGFORGE_HTTP_AUTH_TOKEN="$(openssl rand -hex 32)"
+tagforge serve --http --addr 0.0.0.0:8080
+```
+
+See [docs/self-hosting.md](docs/self-hosting.md) for `/healthz`, Bearer auth, CORS allowlisting, and Docker Compose instructions.
+
 ---
 
 ## Global Flags & Environment Variables
@@ -185,7 +213,9 @@ claude mcp add tagforge -- tagforge mcp
 - [Architecture](docs/architecture.md)
 - [Safety Model](docs/safety-model.md)
 - [Roadmap](docs/roadmap.md)
-- [Blueprints Contract (Phase 2)](blueprints/README.md)
+- [Blueprints Contract](blueprints/README.md)
+- [Self-Hosting (Streamable HTTP MCP)](docs/self-hosting.md)
+- [Distribution & Releases](docs/distribution.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security Policy](SECURITY.md)
 
