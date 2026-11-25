@@ -46,24 +46,40 @@ See [docs/roadmap.md](docs/roadmap.md) for details.
 
 ## Installation
 
-### Package Managers & `npx` (Recommended for Releases)
+### Prebuilt Binaries (GitHub Releases — Recommended Now)
 
-- **Homebrew (macOS & Linux):**
-  ```bash
-  brew install LorranHippolyte/tap/tagforge
-  ```
-- **npx / pnpm (`Node >= 18`, downloads & SHA-256 verifies native binary):**
-  ```bash
-  npx -y tagforge version
-  pnpm dlx tagforge blueprints list
-  ```
-- **Scoop / WinGet (Windows):**
+Download the precompiled binary archive (plus `checksums.txt`) directly from the [GitHub Releases](https://github.com/LorranHippolyte/tagforge/releases/tag/v0.1.0) page:
+
+- **Windows (PowerShell, `amd64`):**
   ```powershell
-  scoop bucket add lorran https://github.com/LorranHippolyte/scoop-bucket
-  scoop install tagforge
-  # or
-  winget install LorranHippolyte.tagforge
+  $dest = "$env:LOCALAPPDATA\Programs\tagforge"
+  New-Item -ItemType Directory -Force -Path $dest | Out-Null
+  Invoke-WebRequest -Uri "https://github.com/LorranHippolyte/tagforge/releases/download/v0.1.0/tagforge_0.1.0_windows_amd64.zip" -OutFile "$dest\tagforge.zip"
+  Expand-Archive -Path "$dest\tagforge.zip" -DestinationPath $dest -Force
+  Remove-Item "$dest\tagforge.zip"
+  & "$dest\tagforge.exe" version
   ```
+  *(Optional: add `$env:LOCALAPPDATA\Programs\tagforge` to your user `PATH` so you can run `tagforge` from any terminal. For Windows ARM64 machines, use `tagforge_0.1.0_windows_arm64.zip`.)*
+
+- **macOS & Linux:**
+  ```bash
+  # Example for macOS Apple Silicon (darwin/arm64); adjust OS/arch as needed
+  curl -fsSLO "https://github.com/LorranHippolyte/tagforge/releases/download/v0.1.0/tagforge_0.1.0_darwin_arm64.tar.gz"
+  tar -xzf tagforge_0.1.0_darwin_arm64.tar.gz tagforge
+  ./tagforge version
+  ```
+  Or install directly with Go 1.26+:
+  ```bash
+  go install github.com/LorranHippolyte/tagforge/cmd/tagforge@v0.1.0
+  ```
+
+### Optional Package Managers (Coming After Registry Setup)
+
+GoReleaser v2 and `packaging/npm` are already wired in [`.github/workflows/release.yml`](.github/workflows/release.yml) and will activate once the external tap/bucket/registry tokens (`HOMEBREW_TAP_TOKEN`, `SCOOP_BUCKET_TOKEN`, `WINGET_GITHUB_TOKEN`, `NPM_TOKEN`) are configured:
+
+- **Homebrew:** `brew install LorranHippolyte/tap/tagforge`
+- **npx / pnpm (`Node >= 18`):** `npx -y tagforge version` / `pnpm dlx tagforge blueprints list`
+- **Scoop / WinGet (Windows):** `scoop bucket add lorran https://github.com/LorranHippolyte/scoop-bucket && scoop install tagforge` / `winget install LorranHippolyte.tagforge`
 
 ### From Source (Go 1.26+)
 
@@ -72,12 +88,6 @@ git clone https://github.com/LorranHippolyte/tagforge.git
 cd tagforge
 make build
 ./bin/tagforge version
-```
-
-Or install into `$GOPATH/bin`:
-
-```bash
-go install github.com/LorranHippolyte/tagforge/cmd/tagforge@latest
 ```
 
 ---
