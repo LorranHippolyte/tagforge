@@ -56,6 +56,12 @@ homebrew_casks:
     homepage: "https://github.com/LorranHippolyte/tagforge"
     description: "Safe, standards-compliant Google Tag Manager CLI and local MCP server"
     skip_upload: auto
+    hooks:
+      post:
+        install_steps: |
+          on_macos do
+            run "/usr/bin/xattr", args: ["-dr", "com.apple.quarantine", "{{ .StagedPath }}/tagforge"]
+          end
     repository:
       owner: LorranHippolyte
       name: tagforge
