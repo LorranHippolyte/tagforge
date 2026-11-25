@@ -58,19 +58,22 @@ homebrew_casks:
     skip_upload: auto
     repository:
       owner: LorranHippolyte
-      name: homebrew-tap
-      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+      name: tagforge
+      branch: main
+      token: "{{ .Env.GITHUB_TOKEN }}"
 
 scoops:
   - name: tagforge
+    directory: bucket
     homepage: "https://github.com/LorranHippolyte/tagforge"
     description: "Safe, standards-compliant Google Tag Manager CLI and local MCP server"
     license: MIT
     skip_upload: auto
     repository:
       owner: LorranHippolyte
-      name: scoop-bucket
-      token: "{{ .Env.SCOOP_BUCKET_TOKEN }}"
+      name: tagforge
+      branch: main
+      token: "{{ .Env.GITHUB_TOKEN }}"
 
 winget:
   - name: tagforge
@@ -86,6 +89,10 @@ winget:
       token: "{{ .Env.WINGET_GITHUB_TOKEN }}"
       pull_request:
         enabled: true
+        base:
+          owner: microsoft
+          name: winget-pkgs
+          branch: master
 
 changelog:
   sort: asc

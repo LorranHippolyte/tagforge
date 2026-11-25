@@ -28,17 +28,10 @@ jobs:
       - name: Determine optional package manager skips
         id: skip
         env:
-          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
           WINGET_GITHUB_TOKEN: ${{ secrets.WINGET_GITHUB_TOKEN }}
         run: |
-          skips=""
-          if [ -z "$HOMEBREW_TAP_TOKEN" ]; then skips="${skips},homebrew"; fi
-          if [ -z "$SCOOP_BUCKET_TOKEN" ]; then skips="${skips},scoop"; fi
-          if [ -z "$WINGET_GITHUB_TOKEN" ]; then skips="${skips},winget"; fi
-          skips="${skips#,}"
-          if [ -n "$skips" ]; then
-            echo "args=--skip=${skips}" >> "$GITHUB_OUTPUT"
+          if [ -z "$WINGET_GITHUB_TOKEN" ]; then
+            echo "args=--skip=winget" >> "$GITHUB_OUTPUT"
           else
             echo "args=" >> "$GITHUB_OUTPUT"
           fi
@@ -50,8 +43,6 @@ jobs:
           args: release --clean ${{ steps.skip.outputs.args }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          SCOOP_BUCKET_TOKEN: ${{ secrets.SCOOP_BUCKET_TOKEN }}
           WINGET_GITHUB_TOKEN: ${{ secrets.WINGET_GITHUB_TOKEN }}
 
   publish-npm:

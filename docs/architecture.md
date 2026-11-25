@@ -1,6 +1,6 @@
 # Architecture
 
-`tagforge` follows a **Core-First, Local-First** architecture so the CLI, future `stdio` MCP server, and optional remote HTTP adapter share identical safety guarantees, API rate-limiting, caching, and business logic.
+`tagforge` follows a **Core-First, Local-First** architecture so the CLI, `stdio` MCP server, and optional remote HTTP adapter share identical safety guarantees, API rate-limiting, caching, and business logic.
 
 ## Layered Design
 
@@ -40,9 +40,10 @@
 - `internal/trackingplan` — Living tracking plan builder generating structured Markdown documentation and typed `dataLayer.push` snippets (`ts`, `js`, `nextjs`, `shopify`) with secret constant redaction.
 - `internal/mcpserver` — MCP server (`stdio` via `tagforge mcp` and optional Streamable HTTP via `tagforge serve --http` with `/healthz`, constant-time Bearer auth, and CORS allowlisting) exposing **19 consolidated tools**, **6 resources/templates** (`gtm://...`), and **7 workflow prompts** backed by the shared core.
 - `internal/cli` — Cobra commands with `--format table|json|markdown`, clean `stdout`/`stderr` separation, and injectable dependencies for deterministic tests.
-- `packaging/npm` — Zero-dependency `npx` / `pnpm dlx` wrapper downloading and SHA-256 verifying GoReleaser v2 native release binaries.
+- `Casks/` & `bucket/` — Single-repo GoReleaser v2 manifests (`Casks/tagforge.rb` for Homebrew, `bucket/tagforge.json` for Scoop) hosted inside `LorranHippolyte/tagforge`.
+- `packaging/npm` — Backlog zero-dependency `npx` / `pnpm dlx` wrapper ready for future npm registry publication.
 
 ## Why Go + Declarative Blueprints?
 
-- **Zero-dependency distribution**: single static binary per OS/architecture, ~10ms startup, native OS keyring support, plus Homebrew Cask, Scoop, WinGet, and a SHA-256 verified `npx` wrapper (`packaging/npm`).
-- **Community-friendly blueprints**: tracking blueprints live as declarative YAML/JSON specs embedded via `//go:embed` (`blueprints/`), allowing GTM practitioners to contribute validated Google, Meta, or e-commerce setups without writing Go.
+- **Zero-dependency distribution**: single static binary per OS/architecture, ~10ms startup, native OS keyring support, distributed directly from GitHub (`Homebrew Cask`, `Scoop`, `GitHub Releases`, `go install`).
+- **Community-friendly blueprints**: tracking blueprints live as declarative YAML specs embedded via `//go:embed` (`blueprints/`), allowing GTM practitioners to contribute validated Google, Meta, TikTok, LinkedIn, Microsoft, Pinterest, or Shopify setups without writing Go.

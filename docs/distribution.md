@@ -1,34 +1,39 @@
 # Distribution & Release Guide
 
-`tagforge` ships standalone static binaries (zero runtime dependencies) via **GoReleaser v2**, plus a thin **`npx` / `pnpm dlx` npm wrapper** (`packaging/npm/`) that downloads and SHA-256 verifies the official GitHub Release binary for the user's OS and CPU architecture.
+`tagforge` distributes standalone static binaries (zero runtime dependencies) through **GoReleaser v2** directly from **`LorranHippolyte/tagforge`** — **100% GitHub-native with zero external repositories or package-registry accounts required**.
+
+Both the Homebrew Cask ([`Casks/tagforge.rb`](../Casks/tagforge.rb)) and the Scoop manifest ([`bucket/tagforge.json`](../bucket/tagforge.json)) live inside this repository and are updated automatically on every tagged release using the workflow's built-in `GITHUB_TOKEN`.
 
 ---
 
-## Supported Installation Channels
+## Supported Installation Channels (100% GitHub-Native)
 
-- **Homebrew (macOS & Linux):**
-  ```bash
-  brew install LorranHippolyte/tap/tagforge
-  ```
-- **Scoop (Windows):**
-  ```powershell
-  scoop bucket add lorran https://github.com/LorranHippolyte/scoop-bucket
-  scoop install tagforge
-  ```
-- **WinGet (Windows):**
-  ```powershell
-  winget install LorranHippolyte.tagforge
-  ```
-- **npm / pnpm (`npx` / `pnpm dlx` wrapper):**
-  ```bash
-  npx -y tagforge version
-  pnpm dlx tagforge blueprints list
-  ```
-- **Go Toolchain:**
-  ```bash
-  go install github.com/LorranHippolyte/tagforge/cmd/tagforge@latest
-  ```
-- **GitHub Releases Archives:** `.tar.gz` (Linux/macOS `amd64`/`arm64`) and `.zip` (Windows `amd64`/`arm64`) with `checksums.txt`.
+### Homebrew (macOS & Linux)
+
+```bash
+brew tap LorranHippolyte/tagforge https://github.com/LorranHippolyte/tagforge
+brew trust lorranhippolyte/tagforge
+brew install --cask LorranHippolyte/tagforge/tagforge
+```
+
+> Homebrew 5+ requires `brew trust` once for third-party taps before loading cask definitions.
+
+### Scoop (Windows)
+
+```powershell
+scoop bucket add tagforge https://github.com/LorranHippolyte/tagforge
+scoop install tagforge
+```
+
+### Prebuilt GitHub Release Archives (`tar.gz` / `zip` + `checksums.txt`)
+
+Download the binary archive for your platform (`darwin`, `linux`, `windows` × `amd64`, `arm64`) and verify its SHA-256 digest against `checksums.txt` on the [Releases page](https://github.com/LorranHippolyte/tagforge/releases).
+
+### Go Toolchain & Source Build
+
+```bash
+go install github.com/LorranHippolyte/tagforge/cmd/tagforge@latest
+```
 
 ---
 
@@ -43,5 +48,14 @@
 3. [`.github/workflows/release.yml`](../.github/workflows/release.yml) automatically:
    - Runs `go test -race ./...`.
    - Builds archives + `checksums.txt` and publishes the GitHub Release via GoReleaser v2.
-   - Updates Homebrew tap (`HOMEBREW_TAP_TOKEN`), Scoop bucket (`SCOOP_BUCKET_TOKEN`), and WinGet PR (`WINGET_GITHUB_TOKEN`) when those optional repository secrets are configured (and gracefully skips any publisher whose token is unset).
-   - Syncs `packaging/npm/package.json` to the release version and publishes to npm when `NPM_TOKEN` is configured.
+   - Updates `Casks/tagforge.rb` (Homebrew Cask) and `bucket/tagforge.json` (Scoop) directly on `main` using `secrets.GITHUB_TOKEN` (zero extra PATs required).
+   - Skips optional external registries cleanly when their secrets are not configured.
+
+---
+
+## Distribution Backlog (Optional Future Channels)
+
+The scaffolding for external package registries is already present in the repository and remains parked in the backlog while `v0.1.x` ships 100% from GitHub:
+
+- **npm / `npx` (`tagforge` wrapper in [`packaging/npm/`](../packaging/npm/)):** thin zero-dependency Node.js wrapper (`>= 18`) that downloads and SHA-256 verifies official GitHub Release archives; activates automatically on future tags once `NPM_TOKEN` is configured.
+- **WinGet (`LorranHippolyte.tagforge`):** GoReleaser PR publisher targeting `microsoft/winget-pkgs`; activates automatically once `WINGET_GITHUB_TOKEN` and a personal fork are configured.

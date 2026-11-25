@@ -1,0 +1,22 @@
+{
+  "version": "0.1.0",
+  "architecture": {
+    "64bit": {
+      "url": "https://github.com/LorranHippolyte/tagforge/releases/download/v0.1.0/tagforge_0.1.0_windows_amd64.zip",
+      "bin": [
+        "tagforge.exe"
+      ],
+      "hash": "8c3ed5ede8909a491100b68d64cc798a18a0e6aeaa231cdbe059a535d24a6ee"
+    },
+    "arm64": {
+      "url": "https://github.com/LorranHippolyte/tagforge/releases/download/v0.1.0/tagforge_0.1.0_windows_arm64.zip",
+      "bin": [
+        "tagforge.exe"
+      ],
+      "hash": "845e501b6eb5bc7c4b6737328ac431fbd509dc6d5b4edeeec632b1009e0cc30d"
+    }
+  },
+  "homepage": "https://github.com/LorranHippolyte/tagforge",
+  "license": "MIT",
+  "description": "Safe, standards-compliant Google Tag Manager CLI and local MCP server"
+}
